@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockfish Mastery - Level 50 Challenge</title>
+    <title>Stockfish Mastery - Pro Analysis</title>
     <!-- Dependencies -->
-    <!-- Restoration of the glitched board: Added missing CSS link below -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -46,7 +45,6 @@
         #eval-text.on-white { bottom: 6px; color: #000; }
         #eval-text.on-black { top: 6px; color: #fff; }
 
-        /* Chessboard Library Overrides */
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         
         .custom-scroll::-webkit-scrollbar { width: 6px; }
@@ -83,11 +81,13 @@
         .promo-choice { cursor: pointer; transition: transform 0.2s; }
         .promo-choice:hover { transform: scale(1.1); background: rgba(255,255,255,0.1); }
 
-        .hint-pulse { animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        .hint-glow { 
+            animation: hint-glow-anim 2s infinite alternate; 
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+        @keyframes hint-glow-anim {
+            from { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+            to { box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
         }
     </style>
 </head>
@@ -155,15 +155,19 @@
                 <div id="board"></div>
             </div>
 
-            <!-- Hint Box -->
-            <div id="hint-box" class="hidden mt-4 w-full bg-slate-900 border border-amber-500/50 p-3 rounded-lg text-center">
-                <p class="text-[10px] uppercase text-amber-500 font-bold mb-1">Stockfish 17 Analysis</p>
-                <p id="hint-text" class="text-xl font-mono font-black text-white tracking-wider">---</p>
+            <!-- Hint Box with Manual Trigger -->
+            <div id="hint-box" class="mt-4 w-full bg-slate-900 border border-slate-700 p-3 rounded-lg flex flex-col items-center gap-2 transition-all duration-500">
+                <div class="flex flex-col items-center">
+                    <p id="hint-label" class="text-[9px] uppercase text-slate-500 font-bold mb-1 tracking-widest">Master Hint System</p>
+                    <p id="hint-text" class="text-xl font-mono font-black text-slate-600 tracking-widest italic">READY</p>
+                </div>
+                <button id="get-hint-btn" class="px-4 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 rounded-full text-[10px] font-bold uppercase tracking-wider text-blue-400 transition-all">
+                    Show Best Move
+                </button>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 justify-center">
                 <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
-                <button id="calculate-hint-btn" class="hidden flex-1 min-w-[120px] py-3 bg-amber-600 hover:bg-amber-500 rounded-lg text-xs font-bold transition shadow-lg hint-pulse">CALCULATE BEST MOVE</button>
                 <button id="copy-moves-btn" class="flex-1 min-w-[120px] py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition shadow-lg">COPY PGN</button>
                 <button id="flip-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">FLIP BOARD</button>
             </div>
@@ -184,7 +188,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Promotion Modal -->
     <div id="promo-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
         <div class="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl text-center">
             <h3 class="text-lg font-bold mb-4">Choose Promotion</h3>
@@ -197,6 +201,7 @@
         </div>
     </div>
 
+    <!-- Game Over Modal -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">You Won!</h2>
@@ -216,9 +221,6 @@
         let historyIndex = -1; 
         let playerColor = 'w';
         let pendingMove = null;
-
-        let newGameClickCount = 0;
-        let hintUnlocked = false; 
         let isCalculatingHint = false;
 
         const STORAGE_KEY = 'sf_mastery_stockfish17_v5';
@@ -354,29 +356,36 @@
 
         async function initEngine() {
             if (stockfish) stockfish.terminate();
-            
             const blob = new Blob([`importScripts("${STOCKFISH_URL}");`], { type: 'application/javascript' });
             stockfish = new Worker(URL.createObjectURL(blob));
             
             stockfish.onmessage = (e) => {
                 const line = e.data;
+                
+                // Real-time evaluation parsing
                 if (line.includes('score cp')) {
                     const match = line.match(/score cp (-?\d+)/);
                     if (match) updateEvalBar(parseInt(match[1]) * (liveGame.turn() === 'b' ? -1 : 1));
                 } 
+
                 if (line.startsWith('bestmove')) {
                     const moveMatch = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
                     if (!moveMatch) return;
                     const moveStr = moveMatch[1];
+                    
                     if (isCalculatingHint) {
                         const tempChess = new Chess(liveGame.fen());
                         const moveObj = tempChess.move(moveStr, { sloppy: true });
-                        $('#hint-text').text(moveObj ? moveObj.san : moveStr.toUpperCase());
-                        $('#hint-box').removeClass('hidden');
+                        const san = moveObj ? moveObj.san : moveStr.toUpperCase();
+                        
+                        $('#hint-text').text(san).removeClass('text-slate-600 italic').addClass('text-blue-400 font-black');
+                        $('#hint-box').addClass('hint-glow border-blue-500/50');
+                        $('#hint-label').text('STOCKFISH RECOMMENDATION').addClass('text-blue-400');
+                        $('#get-hint-btn').text('Update Hint').removeClass('opacity-50');
                         isCalculatingHint = false;
-                        $('#calculate-hint-btn').text('CALCULATE BEST MOVE').removeClass('opacity-50');
                         return;
                     }
+
                     if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
                         const move = liveGame.move(moveStr, { sloppy: true });
                         if (move) {
@@ -408,7 +417,15 @@
             moveHistory.push({ fen: liveGame.fen(), san: move.san });
             historyIndex = moveHistory.length - 1;
             renderHistory();
-            $('#hint-box').addClass('hidden'); 
+            resetHintBox();
+        }
+
+        function resetHintBox() {
+            isCalculatingHint = false;
+            $('#hint-text').text('READY').addClass('text-slate-600 italic').removeClass('text-blue-400 font-black');
+            $('#hint-box').removeClass('hint-glow border-blue-500/50');
+            $('#hint-label').text('Master Hint System').removeClass('text-blue-400');
+            $('#get-hint-btn').text('Show Best Move').removeClass('opacity-50 pointer-events-none');
         }
 
         function renderHistory() {
@@ -432,9 +449,11 @@
             if (historyIndex < moveHistory.length - 1) {
                 $('#resume-overlay').removeClass('hidden');
                 $('#history-label').text('Viewing History').addClass('text-amber-500');
+                $('#get-hint-btn').addClass('opacity-50 pointer-events-none');
             } else {
                 $('#resume-overlay').addClass('hidden');
                 $('#history-label').text('Live Session').removeClass('text-amber-500');
+                $('#get-hint-btn').removeClass('opacity-50 pointer-events-none');
             }
             renderHistory();
         }
@@ -485,16 +504,39 @@
             stockfish.postMessage(`go movetime ${waitTime}`);
         }
 
+        function requestManualHint() {
+            if (liveGame.game_over() || liveGame.turn() !== playerColor || historyIndex !== moveHistory.length - 1) return;
+            
+            isCalculatingHint = true;
+            $('#hint-text').text('THINKING...').addClass('text-slate-600 italic').removeClass('text-blue-400');
+            $('#get-hint-btn').text('Calculating...').addClass('opacity-50');
+            
+            stockfish.postMessage('stop');
+            stockfish.postMessage(`position fen ${liveGame.fen()}`);
+            stockfish.postMessage(`go depth 18`); 
+        }
+
         function updateStatus() {
             let status = liveGame.in_checkmate() ? 'Checkmate!' : liveGame.in_draw() ? 'Draw' : (liveGame.turn() === 'w' ? "White's Turn" : "Black's Turn");
             $('#game-status').text(status);
             $('#current-level-title').text(`Level ${activeLevel.toFixed(1)}`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
-            if (liveGame.game_over()) handleGameOver();
             
-            if (!liveGame.game_over()) {
+            if (liveGame.game_over()) {
+                handleGameOver();
+                $('#hint-text').text('GAME OVER');
+                $('#get-hint-btn').addClass('opacity-50 pointer-events-none');
+            } else {
+                if (liveGame.turn() !== playerColor) {
+                    $('#hint-text').text('OPPONENT THINKING...').addClass('text-slate-600 italic').removeClass('text-blue-400');
+                    $('#get-hint-btn').addClass('opacity-50 pointer-events-none');
+                } else {
+                    $('#get-hint-btn').removeClass('opacity-50 pointer-events-none');
+                }
+                
+                // Continuous background eval update (depth 12 for speed)
                 stockfish.postMessage(`position fen ${liveGame.fen()}`);
-                stockfish.postMessage(`go depth 10`);
+                stockfish.postMessage(`go depth 12`);
             }
         }
 
@@ -518,40 +560,19 @@
         }
 
         async function resetGame() {
-            newGameClickCount++;
             liveGame = new Chess();
             moveHistory = [];
             historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
             $('#resume-overlay').addClass('hidden');
-            $('#hint-box').addClass('hidden');
-            if (hintUnlocked) $('#calculate-hint-btn').removeClass('hidden');
             board.orientation(playerColor === 'w' ? 'white' : 'black');
             board.start();
             renderHistory();
             updateEvalBar(0);
+            resetHintBox();
             await initEngine();
             updateStatus();
             if (playerColor === 'b') triggerEngine();
-        }
-
-        function calculateBestMove() {
-            if (isCalculatingHint || liveGame.game_over()) return;
-            isCalculatingHint = true;
-            $('#calculate-hint-btn').text('THINKING...').addClass('opacity-50');
-            $('#hint-text').text('ANALYZING...');
-            $('#hint-box').removeClass('hidden');
-            stockfish.postMessage(`stop`);
-            stockfish.postMessage(`position fen ${liveGame.fen()}`);
-            stockfish.postMessage(`go depth 18 movetime 3000`); 
-        }
-
-        function attemptUnlockHint() {
-            if (newGameClickCount >= 2) {
-                hintUnlocked = true;
-                $('#calculate-hint-btn').removeClass('hidden');
-                showToast("SECRET HINT ENGINE UNLOCKED");
-            }
         }
 
         $(document).ready(async () => {
@@ -571,9 +592,11 @@
             board = Chessboard('board', config);
             applyVisuals();
             initLevels();
+            
             $('#reset-btn').click(resetGame);
-            $('#flip-btn').click(() => { board.flip(); attemptUnlockHint(); });
-            $('#calculate-hint-btn').click(calculateBestMove);
+            $('#flip-btn').click(() => { board.flip(); });
+            $('#get-hint-btn').click(requestManualHint);
+
             $('#copy-moves-btn').click(async () => {
                 const moveList = moveHistory.map(m => m.san).join(' ');
                 await navigator.clipboard.writeText(moveList);
