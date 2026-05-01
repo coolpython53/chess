@@ -275,21 +275,10 @@
                         let selectedMove = moveStr;
                         const levelIdx = state.currentIndex;
                         
-                        // If it's a lower level, look into our MultiPV buffer to pick a worse move
                         if (levelIdx < 400 && multiPVBuffer.length > 1) {
-                            // Decide how deep into the 'worse moves' list we go based on level index
-                            // Lower level index = higher chance to pick a high rank (bad move)
-                            // maxRank defines the pool of moves to pick from (1 to 5)
                             const maxRank = Math.max(1, Math.min(5, Math.floor(6 - (levelIdx / 80))));
-                            
-                            // At level 0, it picks from ranks 1-5 randomly.
-                            // At level 400, it only picks rank 1.
                             const chosenRank = Math.floor(Math.random() * maxRank);
-                            
-                            // To make 250 rated feel real, we prioritize picking the WORST available move in the pool
-                            // rather than just random, but only for the very start.
                             const likelyWorseRank = levelIdx < 50 ? (multiPVBuffer.length - 1) : chosenRank;
-
                             if (multiPVBuffer[likelyWorseRank]) {
                                 selectedMove = multiPVBuffer[likelyWorseRank].move;
                             }
@@ -302,8 +291,8 @@
             };
 
             stockfish.postMessage('uci');
-            stockfish.postMessage('setoption name Skill Level value 20'); // Always high skill analysis
-            stockfish.postMessage('setoption name MultiPV value 5'); // Look at top 5 moves to facilitate "blunders"
+            stockfish.postMessage('setoption name Skill Level value 20');
+            stockfish.postMessage('setoption name MultiPV value 5');
             stockfish.postMessage('isready');
         }
 
@@ -353,7 +342,6 @@
                 });
                 list.append(card);
             });
-            // Scroll active level into view
             const activeCard = list.find('.active');
             if(activeCard.length) activeCard[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
@@ -389,7 +377,8 @@
 
         function finishHint(san) {
             isCalculatingHint = false;
-            $('#hint-text').text(san).removeClass('text-blue-500/60 italic').addClass('text-blue-400 font-black');
+            // Update the text to show the move SAN, and fix colors/weight
+            $('#hint-text').text(san).removeClass('text-slate-700 italic text-blue-500/60').addClass('text-blue-400 font-black');
             $('#thinking-progress').css('width', '100%');
             $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
         }
@@ -397,7 +386,7 @@
         function requestManualHint() {
             if (liveGame.game_over() || liveGame.turn() !== playerColor) return;
             isCalculatingHint = true;
-            $('#hint-text').text('Thinking...').addClass('text-slate-700 italic').removeClass('text-blue-400');
+            $('#hint-text').text('Thinking...').addClass('text-slate-700 italic').removeClass('text-blue-400 font-black');
             $('#get-hint-btn').text('Calculating...').addClass('opacity-50 pointer-events-none');
             stockfish.postMessage(`position fen ${liveGame.fen()}`);
             stockfish.postMessage(`go depth ${TARGET_DEPTH}`);
@@ -417,7 +406,6 @@
             isCalculatingHint = false;
             $('#hint-text').text('Ready').addClass('text-slate-700 italic').removeClass('text-blue-400 font-black');
             $('#depth-text').text('');
-            // Don't clear eval bar here, let it update naturally
         }
 
         function updateStatus() {
@@ -457,7 +445,6 @@
                 setTimeout(() => {
                     multiPVBuffer = [];
                     stockfish.postMessage(`position fen ${liveGame.fen()}`);
-                    // Use movetime for consistent MultiPV analysis across devices
                     stockfish.postMessage(`go movetime 1000`);
                 }, 250);
             }
@@ -508,18 +495,15 @@
             initLevels($(this).val());
         });
 
-        // Main Initialization
         $(document).ready(async () => {
             loadFromLocal();
             
-            // Initializing the board
             board = Chessboard('board', {
                 draggable: true,
                 position: 'start',
                 onDragStart: (s, p) => {
                     if (liveGame.game_over()) return false;
                     if (liveGame.turn() !== playerColor) return false;
-                    // Ensure board is at current position
                     if (historyIndex !== moveHistory.length - 1 && moveHistory.length > 0) return false;
                     return true;
                 },
