@@ -242,7 +242,7 @@
         }
         
         function saveToLocal() { 
-            state.activeGame = {
+            state.activeGame = liveGame.game_over() ? null : {
                 history: moveHistory,
                 playerColor: playerColor,
                 fen: liveGame.fen()
@@ -449,6 +449,7 @@
             isCalculatingHint = false;
             $('#hint-text').text('Ready').addClass('text-slate-700 italic').removeClass('text-blue-400 font-black');
             $('#depth-text').text('');
+            $('#thinking-progress').css('width', '0%');
         }
 
         function updateStatus() {
@@ -465,7 +466,7 @@
             $('#modal-title').text(won ? 'Level Complete!' : 'Game Over');
             
             const actionBtn = $('#modal-action-btn');
-            actionBtn.off('click');
+            actionBtn.off('click'); // Important: Clear previous listeners
 
             if (won) {
                 const reward = levels[state.currentIndex].reward;
@@ -477,10 +478,10 @@
                 
                 $('#modal-reward').text(`+ 🪙 ${reward}`);
                 actionBtn.text('Next Level').on('click', () => {
+                    $('#game-over-modal').addClass('hidden');
                     if (state.currentIndex < levels.length - 1) {
                         state.currentIndex++;
                     }
-                    $('#game-over-modal').addClass('hidden');
                     state.activeGame = null;
                     state.lastScore = 0;
                     saveToLocal();
@@ -579,17 +580,15 @@
         $('#system-reset-btn').click(function() {
             const btn = $(this);
             if (btn.hasClass('confirming')) {
-                // Perform actual reset
                 state = JSON.parse(JSON.stringify(INITIAL_STATE));
                 localStorage.removeItem(STORAGE_KEY);
-                saveToLocal(); // Saves fresh state
+                saveToLocal();
                 resetGame();
                 initLevels();
                 applyTheme();
                 btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
                 clearTimeout(resetConfirmTimeout);
             } else {
-                // Step 1: Confirmation
                 btn.addClass('confirming bg-red-600 text-white border-red-400').removeClass('bg-red-500/10 text-red-400').text('Confirm Reset?');
                 resetConfirmTimeout = setTimeout(() => {
                     btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
