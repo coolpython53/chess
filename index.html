@@ -85,6 +85,7 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col lg:flex-row p-4 gap-4 font-sans overflow-x-hidden">
 
+    <!-- Sidebar -->
     <div class="w-full lg:w-80 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh]">
         <div class="flex flex-col gap-2 border-b border-slate-700 pb-4">
             <div class="flex justify-between items-center mb-1">
@@ -113,6 +114,7 @@
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="flex-1 flex flex-col items-center justify-start gap-4">
         <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 relative">
             
@@ -154,16 +156,18 @@
         </div>
     </div>
 
+    <!-- History Sidebar -->
     <div class="w-full lg:w-72 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh] border border-slate-700">
         <h3 class="text-xs font-bold uppercase text-slate-400">Move History</h3>
         <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700"></div>
     </div>
 
+    <!-- Game Over Modal -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">Game Over</h2>
             <div id="modal-reward" class="text-amber-400 font-bold text-xl mb-4"></div>
-            <button onclick="$('#game-over-modal').addClass('hidden'); resetGame();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Next Level</button>
+            <button id="modal-action-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Next Level</button>
         </div>
     </div>
 
@@ -265,7 +269,6 @@
 
                     if (cpMatch) {
                         let score = parseInt(cpMatch[1]);
-                        // Stockfish returns score relative to side-to-move
                         if (liveGame.turn() === 'b') score = -score;
                         state.lastScore = score;
                         updateEvalBar(score);
@@ -321,22 +324,15 @@
         }
 
         function updateEvalBar(score) {
-            // Cap the score for visual purposes
             let val = Math.max(-1000, Math.min(1000, score));
-            // 0 is 50%, +1000 is 100%, -1000 is 0%
             const pct = 50 + (val / 20);
             const displayPct = Math.max(5, Math.min(95, pct));
-            
             $('#eval-bar-white').css('height', `${displayPct}%`);
-            
             let text = (score / 100).toFixed(1);
             if (score > 1000) text = "M";
             if (score < -1000) text = "-M";
             if (score > 0) text = "+" + text;
-
-            $('#eval-text').text(text)
-                .toggleClass('on-white', displayPct > 50)
-                .toggleClass('on-black', displayPct <= 50);
+            $('#eval-text').text(text).toggleClass('on-white', displayPct > 50).toggleClass('on-black', displayPct <= 50);
         }
 
         function switchTab(tab) {
@@ -358,7 +354,6 @@
             const list = $('#level-list').empty();
             levels.forEach((lvl, i) => {
                 if (filter && !lvl.name.includes(filter)) return;
-                
                 const isLocked = i > state.unlockedIndex;
                 const isActive = i === state.currentIndex;
                 const card = $(`
@@ -451,7 +446,6 @@
             $('#game-status').text(liveGame.in_checkmate() ? 'Checkmate' : liveGame.in_draw() ? 'Draw' : turnText);
             $('#current-level-title').text(`Level ${levels[state.currentIndex].name}`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
-            
             if (liveGame.game_over()) handleGameOver();
         }
 
@@ -463,15 +457,30 @@
             if (won) {
                 const reward = levels[state.currentIndex].reward;
                 state.coins += reward;
+                // Auto-unlock next level logic
                 if (state.currentIndex === state.unlockedIndex && state.unlockedIndex < levels.length - 1) {
                     state.unlockedIndex++;
                 }
                 $('#modal-reward').text(`+ 🪙 ${reward}`);
+                $('#modal-action-btn').text('Next Level').off('click').on('click', () => {
+                    if (state.currentIndex < levels.length - 1) state.currentIndex++;
+                    state.activeGame = null;
+                    state.lastScore = 0;
+                    $('#game-over-modal').addClass('hidden');
+                    saveToLocal();
+                    resetGame();
+                    initLevels();
+                });
             } else {
                 $('#modal-reward').text('Try again to advance!');
+                $('#modal-action-btn').text('Retry Level').off('click').on('click', () => {
+                    state.activeGame = null;
+                    state.lastScore = 0;
+                    $('#game-over-modal').addClass('hidden');
+                    saveToLocal();
+                    resetGame();
+                });
             }
-            state.activeGame = null;
-            state.lastScore = 0;
             saveToLocal();
             initLevels();
         }
@@ -506,7 +515,6 @@
             const targetFen = moveHistory[idx].fen;
             board.position(targetFen);
             renderHistory();
-            // Trigger engine update for evaluation on historical position
             stockfish.postMessage(`position fen ${targetFen}`);
             stockfish.postMessage(`go depth 12`);
         }
@@ -514,8 +522,8 @@
         async function resetGame() {
             if (state.activeGame) {
                 liveGame = new Chess(state.activeGame.fen);
-                moveHistory = state.activeGame.history;
-                playerColor = state.activeGame.playerColor;
+                moveHistory = state.activeGame.history || [];
+                playerColor = state.activeGame.playerColor || 'w';
                 historyIndex = moveHistory.length - 1;
             } else {
                 liveGame = new Chess(); 
@@ -551,7 +559,6 @@
 
         $(document).ready(async () => {
             loadFromLocal();
-            
             board = Chessboard('board', {
                 draggable: true,
                 position: state.activeGame ? state.activeGame.fen : 'start',
