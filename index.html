@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stockfish Mastery - Level 50 Challenge</title>
     <!-- Dependencies -->
+    <!-- Restoration of the glitched board: Added missing CSS link below -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
@@ -44,6 +46,7 @@
         #eval-text.on-white { bottom: 6px; color: #000; }
         #eval-text.on-black { top: 6px; color: #fff; }
 
+        /* Chessboard Library Overrides */
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         
         .custom-scroll::-webkit-scrollbar { width: 6px; }
@@ -204,7 +207,6 @@
     </div>
 
     <script>
-        // Official Stockfish.js URL
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
         let liveGame = new Chess();
@@ -215,12 +217,11 @@
         let playerColor = 'w';
         let pendingMove = null;
 
-        // Easter Egg Logic
         let newGameClickCount = 0;
         let hintUnlocked = false; 
         let isCalculatingHint = false;
 
-        const STORAGE_KEY = 'sf_mastery_stockfish17_v4';
+        const STORAGE_KEY = 'sf_mastery_stockfish17_v5';
 
         let state = {
             coins: 0,
@@ -359,35 +360,23 @@
             
             stockfish.onmessage = (e) => {
                 const line = e.data;
-                
-                // Real-time Eval parsing
                 if (line.includes('score cp')) {
                     const match = line.match(/score cp (-?\d+)/);
                     if (match) updateEvalBar(parseInt(match[1]) * (liveGame.turn() === 'b' ? -1 : 1));
                 } 
-                
-                // Handling bestmove (works for both bot moves and calculated hints)
                 if (line.startsWith('bestmove')) {
                     const moveMatch = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
                     if (!moveMatch) return;
-                    
                     const moveStr = moveMatch[1];
-
-                    // If we were explicitly calculating a hint
                     if (isCalculatingHint) {
                         const tempChess = new Chess(liveGame.fen());
                         const moveObj = tempChess.move(moveStr, { sloppy: true });
-                        
                         $('#hint-text').text(moveObj ? moveObj.san : moveStr.toUpperCase());
-                        $('#hint-box').removeClass('hidden').addClass('animate-bounce');
-                        setTimeout(() => $('#hint-box').removeClass('animate-bounce'), 1000);
-                        
+                        $('#hint-box').removeClass('hidden');
                         isCalculatingHint = false;
                         $('#calculate-hint-btn').text('CALCULATE BEST MOVE').removeClass('opacity-50');
                         return;
                     }
-
-                    // Otherwise, if it's the opponent's turn, execute the move
                     if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
                         const move = liveGame.move(moveStr, { sloppy: true });
                         if (move) {
@@ -401,9 +390,6 @@
             
             stockfish.postMessage('uci');
             stockfish.postMessage('isready');
-            stockfish.postMessage('setoption name Threads value 4');
-            stockfish.postMessage('setoption name Hash value 128');
-            
             const currentLvl = levels.find(l => Math.abs(l.id - activeLevel) < 0.01) || levels[0];
             stockfish.postMessage(`setoption name Skill Level value ${currentLvl.skill}`);
             stockfish.postMessage(`setoption name UCI_LimitStrength value true`);
@@ -445,10 +431,10 @@
             board.position(index === -1 ? 'start' : moveHistory[index].fen);
             if (historyIndex < moveHistory.length - 1) {
                 $('#resume-overlay').removeClass('hidden');
-                $('#history-label').text('Viewing History').addClass('text-amber-500').removeClass('text-blue-500');
+                $('#history-label').text('Viewing History').addClass('text-amber-500');
             } else {
                 $('#resume-overlay').addClass('hidden');
-                $('#history-label').text('Live Session').removeClass('text-amber-500').addClass('text-blue-500');
+                $('#history-label').text('Live Session').removeClass('text-amber-500');
             }
             renderHistory();
         }
@@ -457,17 +443,14 @@
 
         function onDrop(source, target) {
             if (historyIndex !== moveHistory.length - 1) return 'snapback';
-
             const piece = liveGame.get(source);
             if (piece && piece.type === 'p' && (target[1] === '8' || target[1] === '1')) {
                 pendingMove = { from: source, to: target };
                 showPromotionModal(piece.color);
                 return;
             }
-
             const move = liveGame.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
-            
             recordMove(move);
             updateStatus();
             if (!liveGame.game_over()) setTimeout(triggerEngine, 250);
@@ -518,10 +501,6 @@
         function handleGameOver() {
             const winner = liveGame.in_checkmate() ? (liveGame.turn() === 'b' ? 'white' : 'black') : 'draw';
             const playerWon = (winner === 'white' && playerColor === 'w') || (winner === 'black' && playerColor === 'b');
-            
-            $('#calculate-hint-btn').addClass('hidden');
-            $('#hint-box').addClass('hidden');
-
             $('#game-over-modal').removeClass('hidden');
             const reward = Math.max(1, activeLevel * 2);
             if (playerWon) {
@@ -540,21 +519,13 @@
 
         async function resetGame() {
             newGameClickCount++;
-            
             liveGame = new Chess();
             moveHistory = [];
             historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
-            
             $('#resume-overlay').addClass('hidden');
             $('#hint-box').addClass('hidden');
-            
-            if (hintUnlocked) {
-                 $('#calculate-hint-btn').removeClass('hidden');
-            } else {
-                 $('#calculate-hint-btn').addClass('hidden');
-            }
-
+            if (hintUnlocked) $('#calculate-hint-btn').removeClass('hidden');
             board.orientation(playerColor === 'w' ? 'white' : 'black');
             board.start();
             renderHistory();
@@ -564,19 +535,14 @@
             if (playerColor === 'b') triggerEngine();
         }
 
-        // Fixed Stockfish 17 Calculation Function
         function calculateBestMove() {
             if (isCalculatingHint || liveGame.game_over()) return;
-            
             isCalculatingHint = true;
             $('#calculate-hint-btn').text('THINKING...').addClass('opacity-50');
             $('#hint-text').text('ANALYZING...');
             $('#hint-box').removeClass('hidden');
-
-            // CRITICAL: Must send position immediately before go
-            stockfish.postMessage(`stop`); // Stop current eval if any
+            stockfish.postMessage(`stop`);
             stockfish.postMessage(`position fen ${liveGame.fen()}`);
-            // Use depth 18 OR 3 seconds, whichever comes first to prevent hangs
             stockfish.postMessage(`go depth 18 movetime 3000`); 
         }
 
@@ -591,10 +557,8 @@
         $(document).ready(async () => {
             loadFromLocal();
             saveToLocal();
-            
             liveGame = new Chess();
             playerColor = 'w';
-            
             const config = {
                 draggable: true,
                 position: 'start',
@@ -605,35 +569,21 @@
                 pieceTheme: pieceSkins[0].url
             };
             board = Chessboard('board', config);
-            
             applyVisuals();
             initLevels();
-
             $('#reset-btn').click(resetGame);
-            
-            $('#flip-btn').click(() => {
-                board.flip();
-                attemptUnlockHint(); 
-            });
-
+            $('#flip-btn').click(() => { board.flip(); attemptUnlockHint(); });
             $('#calculate-hint-btn').click(calculateBestMove);
-
             $('#copy-moves-btn').click(async () => {
                 const moveList = moveHistory.map(m => m.san).join(' ');
-                try {
-                    await navigator.clipboard.writeText(moveList);
-                    showToast("Moves copied to clipboard!");
-                } catch(e) {
-                    showToast("Copy failed.");
-                }
+                await navigator.clipboard.writeText(moveList);
+                showToast("Moves copied to clipboard!");
             });
-
             $('#export-btn').click(() => {
                 const data = btoa(JSON.stringify(state));
                 navigator.clipboard.writeText(data);
                 showToast("Save code exported!");
             });
-
             $('#import-btn').click(() => {
                 const code = prompt("Paste your save code:");
                 if (code) {
@@ -645,12 +595,10 @@
                     } catch(e) { showToast("Invalid code."); }
                 }
             });
-
             $(document).keydown((e) => {
                 if (e.keyCode === 37) goToMove(historyIndex - 1);
                 else if (e.keyCode === 39) goToMove(historyIndex + 1);
             });
-
             await resetGame();
             $(window).resize(() => board && board.resize());
         });
