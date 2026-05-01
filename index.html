@@ -11,7 +11,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Fix for chessboard.js pieces visibility with Tailwind */
         .chessboard-63fde img { display: inline; }
         
         .level-card { transition: all 0.1s; border: 1px solid #334155; }
@@ -32,13 +31,14 @@
         
         #eval-bar-container {
             width: 24px;
-            background: #000000;
+            background: #27272a;
             border-radius: 4px;
             overflow: hidden;
             display: flex;
             flex-direction: column-reverse;
             position: relative;
             border: 2px solid #0f172a;
+            height: 100%;
         }
         #eval-bar-white { 
             background: #ffffff;
@@ -50,17 +50,17 @@
             position: absolute; 
             width: 100%; 
             text-align: center; 
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 900; 
             z-index: 10; 
             left: 0; 
             pointer-events: none;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
-        #eval-text.on-white { bottom: 6px; color: #000; }
-        #eval-text.on-black { top: 6px; color: #fff; }
+        #eval-text.on-white { bottom: 8px; color: #000; }
+        #eval-text.on-black { top: 8px; color: #fff; }
 
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
-        
         .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
@@ -85,7 +85,6 @@
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col lg:flex-row p-4 gap-4 font-sans overflow-x-hidden">
 
-    <!-- Left Sidebar -->
     <div class="w-full lg:w-80 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh]">
         <div class="flex flex-col gap-2 border-b border-slate-700 pb-4">
             <div class="flex justify-between items-center mb-1">
@@ -114,7 +113,6 @@
         </div>
     </div>
 
-    <!-- Middle: Game Board -->
     <div class="flex-1 flex flex-col items-center justify-start gap-4">
         <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 relative">
             
@@ -156,13 +154,11 @@
         </div>
     </div>
 
-    <!-- Right Sidebar -->
     <div class="w-full lg:w-72 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh] border border-slate-700">
         <h3 class="text-xs font-bold uppercase text-slate-400">Move History</h3>
         <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700"></div>
     </div>
 
-    <!-- Game Over Modal -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">Game Over</h2>
@@ -183,13 +179,15 @@
         let multiPVBuffer = [];
         const TARGET_DEPTH = 18;
 
-        const STORAGE_KEY = 'sf_mastery_v12_data';
+        const STORAGE_KEY = 'sf_mastery_v12_data_enc';
         let state = { 
             coins: 100, 
             unlockedIndex: 0, 
             board: 'classic',
             ownedBoards: ['classic'],
-            currentIndex: 0
+            currentIndex: 0,
+            activeGame: null,
+            lastScore: 0
         };
 
         const levels = [];
@@ -207,14 +205,35 @@
             { id: 'dark', name: 'Dark Mode', class: 'theme-dark', price: 500 }
         ];
 
+        function encrypt(data) {
+            return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+        }
+
+        function decrypt(str) {
+            try {
+                return JSON.parse(decodeURIComponent(escape(atob(str))));
+            } catch(e) {
+                return null;
+            }
+        }
+
         function loadFromLocal() { 
             const saved = localStorage.getItem(STORAGE_KEY); 
-            if (saved) { try { state = JSON.parse(saved); } catch(e) {} } 
+            if (saved) { 
+                const decoded = decrypt(saved);
+                if (decoded) state = decoded; 
+            } 
             $('#coin-display').text(state.coins.toLocaleString()); 
+            if (state.lastScore !== undefined) updateEvalBar(state.lastScore);
         }
         
         function saveToLocal() { 
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
+            state.activeGame = {
+                history: moveHistory,
+                playerColor: playerColor,
+                fen: liveGame.fen()
+            };
+            localStorage.setItem(STORAGE_KEY, encrypt(state)); 
             $('#coin-display').text(state.coins.toLocaleString()); 
         }
 
@@ -226,7 +245,6 @@
             stockfish.onmessage = (e) => {
                 const line = e.data;
 
-                // Handle move analysis for sub-optimal move selection
                 if (line.includes('depth') && line.includes('multipv')) {
                     const mpvMatch = line.match(/multipv (\d+)/);
                     const pvMatch = line.match(/ pv (.+)/);
@@ -240,28 +258,35 @@
                     }
                 }
 
-                if (line.includes('info depth') && isCalculatingHint) {
+                if (line.includes('info depth')) {
                     const depthMatch = line.match(/depth (\d+)/);
-                    if (depthMatch) {
+                    const cpMatch = line.match(/score cp (-?\d+)/);
+                    const mateMatch = line.match(/score mate (-?\d+)/);
+
+                    if (cpMatch) {
+                        let score = parseInt(cpMatch[1]);
+                        // Stockfish returns score relative to side-to-move
+                        if (liveGame.turn() === 'b') score = -score;
+                        state.lastScore = score;
+                        updateEvalBar(score);
+                    } else if (mateMatch) {
+                        const mateIn = parseInt(mateMatch[1]);
+                        const score = mateIn > 0 ? 10000 : -10000;
+                        updateEvalBar(score);
+                    }
+
+                    if (isCalculatingHint && depthMatch) {
                         const d = parseInt(depthMatch[1]);
                         $('#depth-text').text(`D: ${d}/${TARGET_DEPTH}`);
                         $('#thinking-progress').css('width', `${(d/TARGET_DEPTH) * 100}%`);
-                    }
-                    const pvMatch = line.match(/ pv (.+)/);
-                    if (pvMatch) {
-                        const firstMove = pvMatch[1].split(' ')[0];
-                        const temp = new Chess(liveGame.fen());
-                        const m = temp.move(firstMove, {sloppy:true});
-                        if (m) $('#hint-text').text(m.san).removeClass('text-slate-700').addClass('text-blue-500/60');
-                    }
-                }
-
-                if (line.includes('score cp') && !line.includes('multipv')) {
-                    const cpMatch = line.match(/score cp (-?\d+)/);
-                    if (cpMatch && !isCalculatingHint) {
-                        let score = parseInt(cpMatch[1]);
-                        if (liveGame.turn() === 'b') score = -score;
-                        updateEvalBar(score);
+                        
+                        const pvMatch = line.match(/ pv (.+)/);
+                        if (pvMatch) {
+                            const firstMove = pvMatch[1].split(' ')[0];
+                            const temp = new Chess(liveGame.fen());
+                            const m = temp.move(firstMove, {sloppy:true});
+                            if (m) $('#hint-text').text(m.san).removeClass('text-slate-700').addClass('text-blue-500/60');
+                        }
                     }
                 }
 
@@ -271,7 +296,6 @@
                         const moveObj = new Chess(liveGame.fen()).move(moveStr, { sloppy: true });
                         finishHint(moveObj ? moveObj.san : moveStr);
                     } else if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
-                        // Intelligent sub-optimal selection
                         let selectedMove = moveStr;
                         const levelIdx = state.currentIndex;
                         
@@ -297,10 +321,22 @@
         }
 
         function updateEvalBar(score) {
-            const val = Math.max(-10, Math.min(10, score / 100));
-            const pct = 50 + (val * 5);
-            $('#eval-bar-white').css('height', `${pct}%`);
-            $('#eval-text').text((score/100).toFixed(1)).toggleClass('on-white', pct > 50).toggleClass('on-black', pct <= 50);
+            // Cap the score for visual purposes
+            let val = Math.max(-1000, Math.min(1000, score));
+            // 0 is 50%, +1000 is 100%, -1000 is 0%
+            const pct = 50 + (val / 20);
+            const displayPct = Math.max(5, Math.min(95, pct));
+            
+            $('#eval-bar-white').css('height', `${displayPct}%`);
+            
+            let text = (score / 100).toFixed(1);
+            if (score > 1000) text = "M";
+            if (score < -1000) text = "-M";
+            if (score > 0) text = "+" + text;
+
+            $('#eval-text').text(text)
+                .toggleClass('on-white', displayPct > 50)
+                .toggleClass('on-black', displayPct <= 50);
         }
 
         function switchTab(tab) {
@@ -336,6 +372,8 @@
                 `);
                 if (!isLocked) card.click(() => {
                     state.currentIndex = i;
+                    state.activeGame = null;
+                    state.lastScore = 0;
                     saveToLocal();
                     resetGame();
                     initLevels(filter);
@@ -377,7 +415,6 @@
 
         function finishHint(san) {
             isCalculatingHint = false;
-            // Update the text to show the move SAN, and fix colors/weight
             $('#hint-text').text(san).removeClass('text-slate-700 italic text-blue-500/60').addClass('text-blue-400 font-black');
             $('#thinking-progress').css('width', '100%');
             $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
@@ -398,6 +435,7 @@
             board.position(liveGame.fen());
             renderHistory();
             resetHintBox();
+            saveToLocal();
             stockfish.postMessage(`position fen ${liveGame.fen()}`);
             stockfish.postMessage(`go depth 12`);
         }
@@ -432,6 +470,8 @@
             } else {
                 $('#modal-reward').text('Try again to advance!');
             }
+            state.activeGame = null;
+            state.lastScore = 0;
             saveToLocal();
             initLevels();
         }
@@ -463,31 +503,45 @@
         function jumpToMove(idx) {
             if (idx < 0 || idx >= moveHistory.length) return;
             historyIndex = idx;
-            board.position(moveHistory[idx].fen);
+            const targetFen = moveHistory[idx].fen;
+            board.position(targetFen);
             renderHistory();
+            // Trigger engine update for evaluation on historical position
+            stockfish.postMessage(`position fen ${targetFen}`);
+            stockfish.postMessage(`go depth 12`);
         }
 
         async function resetGame() {
-            liveGame = new Chess(); 
-            moveHistory = []; 
-            historyIndex = -1;
-            playerColor = Math.random() < 0.5 ? 'w' : 'b';
+            if (state.activeGame) {
+                liveGame = new Chess(state.activeGame.fen);
+                moveHistory = state.activeGame.history;
+                playerColor = state.activeGame.playerColor;
+                historyIndex = moveHistory.length - 1;
+            } else {
+                liveGame = new Chess(); 
+                moveHistory = []; 
+                historyIndex = -1;
+                playerColor = Math.random() < 0.5 ? 'w' : 'b';
+            }
             
             if (board) {
                 board.orientation(playerColor === 'w' ? 'white' : 'black');
-                board.start();
+                board.position(liveGame.fen());
             }
             
             renderHistory(); 
-            updateEvalBar(0); 
+            updateEvalBar(state.lastScore || 0); 
             resetHintBox();
             await initEngine(); 
             updateStatus();
             
-            if (playerColor === 'b') {
+            if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
                 multiPVBuffer = [];
                 stockfish.postMessage(`position fen ${liveGame.fen()}`);
                 stockfish.postMessage(`go movetime 1000`);
+            } else {
+                stockfish.postMessage(`position fen ${liveGame.fen()}`);
+                stockfish.postMessage(`go depth 12`);
             }
         }
 
@@ -500,7 +554,7 @@
             
             board = Chessboard('board', {
                 draggable: true,
-                position: 'start',
+                position: state.activeGame ? state.activeGame.fen : 'start',
                 onDragStart: (s, p) => {
                     if (liveGame.game_over()) return false;
                     if (liveGame.turn() !== playerColor) return false;
@@ -514,7 +568,12 @@
 
             $(window).resize(board.resize);
             $('#get-hint-btn').click(requestManualHint);
-            $('#reset-btn').click(resetGame);
+            $('#reset-btn').click(() => {
+                state.activeGame = null;
+                state.lastScore = 0;
+                saveToLocal();
+                resetGame();
+            });
             
             applyTheme();
             initLevels();
