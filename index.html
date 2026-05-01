@@ -15,8 +15,9 @@
         
         .level-card { transition: all 0.1s; border: 1px solid #334155; }
         .level-card.locked { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
+        .level-card.completed { border-color: #10b981; background: rgba(16, 185, 129, 0.05); cursor: default; }
         .level-card.active { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.1); }
-        .level-card:not(.locked):hover { border-color: #3b82f6; transform: translateY(-1px); background: #1e293b; }
+        .level-card:not(.locked):not(.completed):hover { border-color: #3b82f6; transform: translateY(-1px); background: #1e293b; }
         
         #board-container { 
             display: flex; 
@@ -152,9 +153,14 @@
                 <div class="w-full bg-slate-800 rounded-full h-[2px] overflow-hidden">
                     <div id="thinking-progress" class="thinking-loader"></div>
                 </div>
-                <button id="get-hint-btn" class="mt-1 w-full py-2 bg-blue-600/10 hover:bg-blue-600/30 border border-blue-500/30 rounded text-[10px] font-bold uppercase tracking-wider text-blue-400 transition-all">
-                    Request Hint
-                </button>
+                <div class="flex gap-2 mt-1">
+                    <button id="get-hint-btn" class="flex-grow py-2 bg-blue-600/10 hover:bg-blue-600/30 border border-blue-500/30 rounded text-[10px] font-bold uppercase tracking-wider text-blue-400 transition-all">
+                        Request Hint
+                    </button>
+                    <button id="stop-engine-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[10px] font-bold uppercase tracking-wider text-slate-300 transition-all">
+                        Stop Engine
+                    </button>
+                </div>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 justify-center">
@@ -242,7 +248,7 @@
         }
         
         function saveToLocal() { 
-            state.activeGame = liveGame.game_over() ? null : {
+            state.activeGame = (liveGame.game_over() || !board) ? null : {
                 history: moveHistory,
                 playerColor: playerColor,
                 fen: liveGame.fen()
@@ -252,7 +258,10 @@
         }
 
         async function initEngine() {
-            if (stockfish) stockfish.terminate();
+            if (stockfish) {
+                stockfish.terminate();
+                stockfish = null;
+            }
             const blob = new Blob([`importScripts("${STOCKFISH_URL}");`], { type: 'application/javascript' });
             stockfish = new Worker(URL.createObjectURL(blob));
             
@@ -365,17 +374,23 @@
             levels.forEach((lvl, i) => {
                 if (filter && !lvl.name.includes(filter)) return;
                 const isLocked = i > state.unlockedIndex;
+                const isCompleted = i < state.unlockedIndex;
                 const isActive = i === state.currentIndex;
+                
+                const cardClass = isLocked ? 'locked' : (isCompleted ? 'completed' : (isActive ? 'active' : ''));
+                
                 const card = $(`
-                    <div class="level-card p-2 rounded flex items-center justify-between cursor-pointer ${isLocked ? 'locked' : ''} ${isActive ? 'active' : ''}">
+                    <div class="level-card p-2 rounded flex items-center justify-between cursor-pointer ${cardClass}">
                         <div class="flex flex-col">
-                            <span class="text-xs font-bold ${isActive ? 'text-blue-400' : 'text-slate-200'}">Level ${lvl.name}</span>
+                            <span class="text-xs font-bold ${isActive ? 'text-blue-400' : (isCompleted ? 'text-emerald-400' : 'text-slate-200')}">Level ${lvl.name}</span>
                             <span class="text-[9px] text-slate-500 uppercase">Elo: ${lvl.elo} • Reward: 🪙${lvl.reward}</span>
                         </div>
-                        <span class="text-[10px]">${isLocked ? '🔒' : isActive ? '🎯' : '✅'}</span>
+                        <span class="text-[10px]">${isLocked ? '🔒' : (isCompleted ? '✅' : (isActive ? '🎯' : '🔓'))}</span>
                     </div>
                 `);
-                if (!isLocked) card.click(() => {
+                
+                // Only allow clicking the current active level
+                if (!isLocked && !isCompleted) card.click(() => {
                     state.currentIndex = i;
                     state.activeGame = null;
                     state.lastScore = 0;
@@ -383,6 +398,7 @@
                     resetGame();
                     initLevels(filter);
                 });
+                
                 list.append(card);
             });
             const activeCard = list.find('.active');
@@ -450,6 +466,18 @@
             $('#hint-text').text('Ready').addClass('text-slate-700 italic').removeClass('text-blue-400 font-black');
             $('#depth-text').text('');
             $('#thinking-progress').css('width', '0%');
+            $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
+        }
+
+        function stopEngine() {
+            if (stockfish) {
+                stockfish.postMessage('stop');
+                initEngine().then(() => {
+                    resetHintBox();
+                    stockfish.postMessage(`position fen ${liveGame.fen()}`);
+                    stockfish.postMessage(`go depth 12`);
+                });
+            }
         }
 
         function updateStatus() {
@@ -466,22 +494,21 @@
             $('#modal-title').text(won ? 'Level Complete!' : 'Game Over');
             
             const actionBtn = $('#modal-action-btn');
-            actionBtn.off('click'); // Important: Clear previous listeners
+            actionBtn.off('click');
 
             if (won) {
                 const reward = levels[state.currentIndex].reward;
                 state.coins += reward;
                 
-                if (state.currentIndex === state.unlockedIndex && state.unlockedIndex < levels.length - 1) {
+                // If we won the latest level, increment unlocked
+                if (state.currentIndex === state.unlockedIndex) {
                     state.unlockedIndex++;
+                    state.currentIndex++; // Move to the new level automatically
                 }
                 
                 $('#modal-reward').text(`+ 🪙 ${reward}`);
-                actionBtn.text('Next Level').on('click', () => {
+                actionBtn.text('Continue to Level ' + levels[state.currentIndex].name).on('click', () => {
                     $('#game-over-modal').addClass('hidden');
-                    if (state.currentIndex < levels.length - 1) {
-                        state.currentIndex++;
-                    }
                     state.activeGame = null;
                     state.lastScore = 0;
                     saveToLocal();
@@ -598,6 +625,12 @@
 
         $(document).ready(async () => {
             loadFromLocal();
+            
+            // Safety check: ensure current index is always the latest unlocked for a new play
+            if (!state.activeGame) {
+                state.currentIndex = state.unlockedIndex;
+            }
+
             board = Chessboard('board', {
                 draggable: true,
                 position: state.activeGame ? state.activeGame.fen : 'start',
@@ -614,6 +647,7 @@
 
             $(window).resize(board.resize);
             $('#get-hint-btn').click(requestManualHint);
+            $('#stop-engine-btn').click(stopEngine);
             $('#reset-btn').click(() => {
                 state.activeGame = null;
                 state.lastScore = 0;
