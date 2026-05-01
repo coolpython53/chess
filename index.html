@@ -48,7 +48,6 @@
 
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         
-        /* Custom Scrollbar */
         .custom-scroll::-webkit-scrollbar { width: 5px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
@@ -59,11 +58,9 @@
         .theme-dark .white-1e1d7 { background-color: #9e9e9e !important; }
         .theme-dark .black-3c85d { background-color: #424242 !important; }
 
-        .captured-piece { width: 22px; height: 22px; background-size: contain; background-repeat: no-repeat; display: inline-block; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
-        
-        .move-item { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+        .move-item { cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s; }
         .move-item:hover { background: rgba(255,255,255,0.1); }
-        .move-item.active { background: #3b82f6; color: white; }
+        .move-item.active { background: #3b82f6; color: white; font-weight: bold; }
 
         #copy-toast {
             position: fixed;
@@ -97,8 +94,8 @@
                 </div>
             </div>
             <div class="flex gap-1">
-                <button id="save-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Export</button>
-                <button id="load-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Import</button>
+                <button id="save-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Export Data</button>
+                <button id="load-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Import Data</button>
             </div>
         </div>
 
@@ -119,19 +116,13 @@
 
     <!-- Middle: Game Board -->
     <div class="flex-1 flex flex-col items-center justify-start gap-4">
-        <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl">
+        <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700">
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h2 id="current-level-title" class="text-md font-bold text-blue-400">Level 0</h2>
                     <p id="player-side-info" class="text-[10px] font-bold uppercase tracking-widest text-slate-400">White</p>
                 </div>
-                <div class="flex flex-col items-end gap-2">
-                    <div id="game-status" class="text-[10px] px-3 py-1 bg-slate-700 rounded-full font-bold uppercase">Ready</div>
-                    <div class="flex gap-1">
-                        <button id="mode-play" onclick="setMode('play')" class="px-3 py-1 text-[10px] font-bold rounded bg-blue-600 text-white">PLAY</button>
-                        <button id="mode-analyze" onclick="setMode('analyze')" class="px-3 py-1 text-[10px] font-bold rounded bg-slate-700 text-slate-300">ANALYZE</button>
-                    </div>
-                </div>
+                <div id="game-status" class="text-[10px] px-3 py-1 bg-slate-700 rounded-full font-bold uppercase">Ready</div>
             </div>
 
             <div id="board-container">
@@ -144,41 +135,31 @@
 
             <div class="mt-4 flex gap-2 justify-center">
                 <button id="reset-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
-                <button id="copy-moves-btn" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition">COPY MOVES</button>
+                <button id="copy-moves-btn" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition shadow-lg">COPY MOVES</button>
                 <button id="flip-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">FLIP</button>
             </div>
         </div>
     </div>
 
-    <!-- Right Sidebar: History & Analysis -->
-    <div class="w-full lg:w-64 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh]">
-        <h3 class="text-xs font-bold uppercase text-slate-400 border-b border-slate-700 pb-2">Move History</h3>
+    <!-- Right Sidebar: History -->
+    <div class="w-full lg:w-64 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh] border border-slate-700">
+        <div class="flex flex-col">
+            <h3 class="text-xs font-bold uppercase text-slate-400 mb-1">Move History</h3>
+            <p class="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">Current Match</p>
+        </div>
         
-        <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start">
+        <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700">
             <!-- Moves injected here -->
         </div>
 
-        <div class="border-t border-slate-700 pt-4 flex flex-col gap-2">
-            <button id="import-pgn-btn" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-[10px] font-bold uppercase transition">Import PGN/Moves</button>
-            <p class="text-[9px] text-slate-500 text-center italic">Use Arrow Keys ← → to navigate moves in Analyze Mode</p>
+        <div class="pt-2">
+            <p class="text-[9px] text-slate-500 text-center italic leading-tight">Use arrow keys to review moves.</p>
         </div>
     </div>
 
-    <!-- Modals -->
-    <div id="pgn-modal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4">
-        <div class="bg-slate-800 p-6 rounded-2xl w-full max-w-md border border-slate-700">
-            <h2 class="text-xl font-bold mb-2 text-blue-400">Load Game</h2>
-            <p class="text-[10px] text-slate-400 mb-4 uppercase font-bold">Paste moves (e.g. e4 e5 Nf3...) or a PGN string</p>
-            <textarea id="pgn-input" class="w-full h-40 bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs mb-4 font-mono text-slate-300 focus:outline-none focus:border-blue-500" placeholder="1. e4 e5 2. Nf3 Nc6..."></textarea>
-            <div class="flex gap-2">
-                <button onclick="$('#pgn-modal').addClass('hidden')" class="flex-1 py-2 bg-slate-700 rounded font-bold text-xs">CANCEL</button>
-                <button id="confirm-pgn-load" class="flex-1 py-2 bg-blue-600 rounded font-bold text-xs">LOAD GAME</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Game Over Modal -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600">
+        <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">You Won!</h2>
             <div id="modal-reward" class="text-amber-400 font-bold text-xl mb-4"></div>
             <p id="modal-msg" class="text-slate-300 mb-6"></p>
@@ -189,21 +170,18 @@
     <script>
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
-        // Game State
         let game = new Chess();
         let board = null;
         let stockfish = null;
+        let moveHistory = [];
+        let historyIndex = -1;
         let playerColor = 'w';
-        let currentMode = 'play'; 
-        let historyIndex = -1; 
-        let moveHistory = []; 
 
         // Persistence
         let coins = parseFloat(localStorage.getItem('sf_coins_v6')) || 0;
         let currentLevel = parseFloat(localStorage.getItem('sf_unlocked_v6')) || 0;
         let activeLevel = currentLevel;
         let rebirths = parseInt(localStorage.getItem('sf_rebirths_v6')) || 1;
-        let ownedItems = JSON.parse(localStorage.getItem('sf_owned_v6')) || ['wikipedia', 'classic'];
         let activeSkin = localStorage.getItem('sf_skin_v6') || 'wikipedia';
         let activeBoard = localStorage.getItem('sf_board_v6') || 'classic';
 
@@ -229,18 +207,6 @@
             coins = parseFloat((coins + amt).toFixed(2));
             localStorage.setItem('sf_coins_v6', coins);
             $('#coin-display').text(Math.floor(coins).toLocaleString());
-        }
-
-        function setMode(mode) {
-            currentMode = mode;
-            if (mode === 'play') {
-                $('#mode-play').addClass('bg-blue-600 text-white').removeClass('bg-slate-700 text-slate-300');
-                $('#mode-analyze').removeClass('bg-blue-600 text-white').addClass('bg-slate-700 text-slate-300');
-                if (game.turn() !== playerColor && !game.game_over()) triggerEngine();
-            } else {
-                $('#mode-analyze').addClass('bg-blue-600 text-white').removeClass('bg-slate-700 text-slate-300');
-                $('#mode-play').removeClass('bg-blue-600 text-white').addClass('bg-slate-700 text-slate-300');
-            }
         }
 
         function switchTab(tab) {
@@ -286,8 +252,8 @@
             const config = {
                 draggable: true,
                 position: game.fen(),
-                orientation: board ? board.orientation() : (playerColor === 'w' ? 'white' : 'black'),
-                onDragStart: (s, p) => !game.game_over() && (currentMode === 'analyze' || game.turn() === playerColor),
+                orientation: playerColor === 'w' ? 'white' : 'black',
+                onDragStart: (s, p) => !game.game_over() && game.turn() === playerColor && historyIndex === moveHistory.length - 1,
                 onDrop: onDrop,
                 onSnapEnd: () => board.position(game.fen()),
                 pieceTheme: skin.url
@@ -330,7 +296,7 @@
                     if (match) updateEvalBar(parseInt(match[1]) * (game.turn() === 'b' ? -1 : 1));
                 } else if (line.includes('bestmove')) {
                     const match = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
-                    if (match && currentMode === 'play' && game.turn() !== playerColor) {
+                    if (match && game.turn() !== playerColor) {
                         const move = game.move(match[1], { sloppy: true });
                         recordMove(move);
                         board.position(game.fen());
@@ -354,10 +320,7 @@
             if (historyIndex < moveHistory.length - 1) {
                 moveHistory = moveHistory.slice(0, historyIndex + 1);
             }
-            moveHistory.push({
-                fen: game.fen(),
-                san: move.san
-            });
+            moveHistory.push({ fen: game.fen(), san: move.san });
             historyIndex = moveHistory.length - 1;
             renderHistory();
         }
@@ -366,9 +329,8 @@
             const list = $('#move-history-list').empty();
             moveHistory.forEach((item, i) => {
                 const isWhite = i % 2 === 0;
-                const turnNum = Math.floor(i / 2) + 1;
                 if (isWhite) {
-                    list.append(`<div class="text-slate-500 text-[10px] col-span-2 mt-1">Move ${turnNum}</div>`);
+                    list.append(`<div class="text-slate-500 text-[10px] col-span-2 mt-1">Move ${Math.floor(i / 2) + 1}</div>`);
                 }
                 const active = i === historyIndex ? 'active' : '';
                 list.append(`<div onclick="goToMove(${i})" class="move-item ${active}">${item.san}</div>`);
@@ -394,13 +356,13 @@
             recordMove(move);
             updateStatus();
             
-            if (currentMode === 'play' && !game.game_over()) {
+            if (!game.game_over()) {
                 setTimeout(triggerEngine, 250);
             }
         }
 
         function triggerEngine() {
-            if (currentMode !== 'play' || game.game_over()) return;
+            if (game.game_over()) return;
             stockfish.postMessage(`position fen ${game.fen()}`);
             stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
         }
@@ -411,12 +373,10 @@
             $('#current-level-title').text(`Level ${activeLevel.toFixed(1)}`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
             
-            if (game.game_over() && currentMode === 'play') handleGameOver();
+            if (game.game_over()) handleGameOver();
             
-            if (currentMode === 'analyze') {
-                stockfish.postMessage(`position fen ${game.fen()}`);
-                stockfish.postMessage(`go depth 10`);
-            }
+            stockfish.postMessage(`position fen ${game.fen()}`);
+            stockfish.postMessage(`go depth 12`);
         }
 
         function handleGameOver() {
@@ -443,13 +403,15 @@
             moveHistory = [];
             historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
+            
             board.orientation(playerColor === 'w' ? 'white' : 'black');
             board.start();
             renderHistory();
             updateEvalBar(0);
             await initEngine();
             updateStatus();
-            if (playerColor === 'b' && currentMode === 'play') triggerEngine();
+            
+            if (playerColor === 'b') triggerEngine();
         }
 
         function copyMovesToClipboard() {
@@ -467,12 +429,8 @@
         }
 
         $(document).keydown((e) => {
-            if ($('#pgn-modal').is(':visible')) return;
-            if (e.keyCode === 37) { 
-                goToMove(historyIndex - 1);
-            } else if (e.keyCode === 39) { 
-                goToMove(historyIndex + 1);
-            }
+            if (e.keyCode === 37) goToMove(historyIndex - 1);
+            else if (e.keyCode === 39) goToMove(historyIndex + 1);
         });
 
         $(document).ready(async () => {
@@ -484,36 +442,6 @@
             $('#copy-moves-btn').click(copyMovesToClipboard);
             $('#flip-btn').click(() => board.flip());
             
-            $('#import-pgn-btn').click(() => $('#pgn-modal').removeClass('hidden'));
-            $('#confirm-pgn-load').click(() => {
-                const input = $('#pgn-input').val().trim();
-                if (!input) return;
-                const tempGame = new Chess();
-                const success = tempGame.load_pgn(input) || (function(){
-                    const moves = input.split(/\s+/);
-                    for(let m of moves) if(!tempGame.move(m, {sloppy:true})) return false;
-                    return true;
-                })();
-
-                if (success) {
-                    game = new Chess();
-                    moveHistory = [];
-                    const moves = tempGame.history();
-                    moves.forEach(m => {
-                        const mv = game.move(m);
-                        moveHistory.push({ fen: game.fen(), san: mv.san });
-                    });
-                    historyIndex = moveHistory.length - 1;
-                    setMode('analyze');
-                    renderHistory();
-                    board.position(game.fen());
-                    $('#pgn-modal').addClass('hidden');
-                    updateStatus();
-                } else {
-                    alert("Invalid Moves or PGN Format");
-                }
-            });
-
             await resetGame();
             $(window).resize(() => board && board.resize());
         });
