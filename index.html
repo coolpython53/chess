@@ -17,18 +17,18 @@
         #board { flex-grow: 1; }
         
         #eval-bar-container {
-            width: 32px; /* Increased width */
-            background: #000000; /* Solid Black background for the black side */
+            width: 36px;
+            background: #000000;
             border-radius: 6px;
             overflow: hidden;
             display: flex;
-            flex-direction: column-reverse; /* White grows from bottom */
+            flex-direction: column-reverse;
             position: relative;
             border: 2px solid #0f172a;
             box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
         }
         #eval-bar-white { 
-            background: #ffffff; /* Pure white for contrast */
+            background: #ffffff;
             width: 100%; 
             height: 50%; 
             transition: height 0.6s cubic-bezier(0.23, 1, 0.32, 1); 
@@ -37,20 +37,20 @@
             position: absolute; 
             width: 100%; 
             text-align: center; 
-            font-size: 10px; /* Slightly larger text */
-            font-weight: 800; 
+            font-size: 11px;
+            font-weight: 900; 
             z-index: 10; 
             left: 0; 
             pointer-events: none;
-            letter-spacing: -0.5px;
         }
-        /* Position logic for text to stay visible */
         #eval-text.on-white { bottom: 8px; color: #000; }
         #eval-text.on-black { top: 8px; color: #fff; }
 
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
-        #level-list::-webkit-scrollbar { width: 4px; }
-        #level-list::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
         .theme-forest .white-1e1d7 { background-color: #edead0 !important; }
         .theme-forest .black-3c85d { background-color: #6c9463 !important; }
@@ -60,83 +60,78 @@
         .theme-dark .black-3c85d { background-color: #424242 !important; }
 
         .captured-piece { width: 22px; height: 22px; background-size: contain; background-repeat: no-repeat; display: inline-block; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+        
+        .move-item { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+        .move-item:hover { background: rgba(255,255,255,0.1); }
+        .move-item.active { background: #3b82f6; color: white; }
+
+        #copy-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex flex-col md:flex-row p-4 gap-6 font-sans">
+<body class="bg-slate-900 text-white min-h-screen flex flex-col lg:flex-row p-4 gap-4 font-sans overflow-x-hidden">
 
-    <!-- Sidebar -->
-    <div class="w-full md:w-80 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh]">
+    <div id="copy-toast">Moves copied to clipboard!</div>
+
+    <!-- Left Sidebar: Levels & Shop -->
+    <div class="w-full lg:w-72 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh]">
         <div class="flex flex-col gap-2 border-b border-slate-700 pb-4">
-            <div class="flex justify-between items-center mb-2">
-                <h1 class="text-xl font-bold">Stockfish Mastery</h1>
-                <div class="bg-amber-500/20 text-amber-400 px-2 py-1 rounded text-sm font-mono flex items-center gap-1">
+            <div class="flex justify-between items-center mb-1">
+                <h1 class="text-lg font-bold">Stockfish Mastery</h1>
+                <div class="bg-amber-500/20 text-amber-400 px-2 py-1 rounded text-xs font-mono flex items-center gap-1">
                     🪙 <span id="coin-display">0</span>
                 </div>
             </div>
-            <div class="flex gap-2">
-                <button id="save-btn" class="flex-1 py-1 text-[10px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Copy Save</button>
-                <button id="load-btn" class="flex-1 py-1 text-[10px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Load Save</button>
+            <div class="flex gap-1">
+                <button id="save-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Export</button>
+                <button id="load-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Import</button>
             </div>
-        </div>
-
-        <div id="rebirth-container" class="hidden">
-            <button id="rebirth-btn" class="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold text-sm shadow-lg transform transition active:scale-95 flex flex-col items-center">
-                <span>REBIRTH NOW</span>
-                <span id="rebirth-desc" class="text-[10px] opacity-80 font-normal">Next Multiplier: 2x</span>
-            </button>
         </div>
 
         <div class="flex border-b border-slate-700">
-            <button onclick="switchTab('levels')" id="tab-levels" class="flex-1 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400">Levels</button>
-            <button onclick="switchTab('shop')" id="tab-shop" class="flex-1 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400">Shop</button>
+            <button onclick="switchTab('levels')" id="tab-levels" class="flex-1 py-2 text-xs font-bold border-b-2 border-blue-500 text-blue-400">Levels</button>
+            <button onclick="switchTab('shop')" id="tab-shop" class="flex-1 py-2 text-xs font-bold border-b-2 border-transparent text-slate-400">Shop</button>
         </div>
 
-        <div id="content-levels" class="flex-col gap-2 overflow-y-auto flex-grow pr-1">
+        <div id="content-levels" class="flex-col gap-2 overflow-y-auto flex-grow pr-1 custom-scroll">
             <div id="level-list" class="flex flex-col gap-2"></div>
         </div>
 
-        <div id="content-shop" class="hidden flex-col gap-4 overflow-y-auto flex-grow pr-1">
-            <div class="mt-2 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
-                <p class="text-[10px] text-slate-400 uppercase font-bold">Current Multiplier</p>
-                <p id="multi-display" class="text-xl font-bold text-blue-400">1x Earnings</p>
-            </div>
-            <div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">Board Themes</h3>
-                <div class="grid grid-cols-2 gap-2" id="board-shop"></div>
-            </div>
-            <div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">Piece Skins</h3>
-                <div class="grid grid-cols-2 gap-2" id="piece-shop"></div>
-            </div>
-            <div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase mb-2">Sound Effects</h3>
-                <div class="grid grid-cols-2 gap-2" id="sound-shop"></div>
-            </div>
+        <div id="content-shop" class="hidden flex-col gap-4 overflow-y-auto flex-grow pr-1 custom-scroll">
+            <div id="board-shop" class="grid grid-cols-2 gap-2 mt-2"></div>
+            <div id="piece-shop" class="grid grid-cols-2 gap-2"></div>
         </div>
     </div>
 
-    <!-- Main Game -->
-    <div class="flex-1 flex flex-col items-center justify-center gap-4">
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl w-full max-w-3xl">
+    <!-- Middle: Game Board -->
+    <div class="flex-1 flex flex-col items-center justify-start gap-4">
+        <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl">
             <div class="flex justify-between items-start mb-4">
                 <div>
-                    <h2 id="current-level-title" class="text-lg font-bold text-blue-400">Level 0: Total Beginner</h2>
-                    <p id="level-desc" class="text-xs text-slate-400 mb-1">ELO: 500</p>
-                    <div id="level-reward-tag" class="inline-block text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                        Unlocked Reward: Next Level
+                    <h2 id="current-level-title" class="text-md font-bold text-blue-400">Level 0</h2>
+                    <p id="player-side-info" class="text-[10px] font-bold uppercase tracking-widest text-slate-400">White</p>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                    <div id="game-status" class="text-[10px] px-3 py-1 bg-slate-700 rounded-full font-bold uppercase">Ready</div>
+                    <div class="flex gap-1">
+                        <button id="mode-play" onclick="setMode('play')" class="px-3 py-1 text-[10px] font-bold rounded bg-blue-600 text-white">PLAY</button>
+                        <button id="mode-analyze" onclick="setMode('analyze')" class="px-3 py-1 text-[10px] font-bold rounded bg-slate-700 text-slate-300">ANALYZE</button>
                     </div>
                 </div>
-                <div class="text-right">
-                    <div id="game-status" class="text-xs px-3 py-1 bg-slate-700 rounded-full inline-block">Ready</div>
-                    <p id="player-side-info" class="text-[10px] font-bold mt-2 uppercase tracking-widest text-slate-400">Playing as White</p>
-                </div>
-            </div>
-
-            <!-- Captured Pieces -->
-            <div id="captured-container" class="flex justify-between px-2 mb-2 min-h-[30px] items-center bg-slate-900/40 rounded-lg p-1 border border-slate-700/50">
-                <div id="captures-white" class="flex items-center gap-0.5 opacity-80"></div>
-                <div id="material-advantage" class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Even</div>
-                <div id="captures-black" class="flex items-center gap-0.5 opacity-80"></div>
             </div>
 
             <div id="board-container">
@@ -147,150 +142,105 @@
                 <div id="board"></div>
             </div>
 
-            <div class="mt-6 flex gap-4 justify-center">
-                <button id="reset-btn" class="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Reset Match</button>
-                <button id="undo-btn" class="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Undo</button>
+            <div class="mt-4 flex gap-2 justify-center">
+                <button id="reset-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
+                <button id="copy-moves-btn" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition">COPY MOVES</button>
+                <button id="flip-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">FLIP</button>
             </div>
         </div>
     </div>
 
-    <!-- Modals & Overlays -->
+    <!-- Right Sidebar: History & Analysis -->
+    <div class="w-full lg:w-64 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh]">
+        <h3 class="text-xs font-bold uppercase text-slate-400 border-b border-slate-700 pb-2">Move History</h3>
+        
+        <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start">
+            <!-- Moves injected here -->
+        </div>
+
+        <div class="border-t border-slate-700 pt-4 flex flex-col gap-2">
+            <button id="import-pgn-btn" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-[10px] font-bold uppercase transition">Import PGN/Moves</button>
+            <p class="text-[9px] text-slate-500 text-center italic">Use Arrow Keys ← → to navigate moves in Analyze Mode</p>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="pgn-modal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4">
+        <div class="bg-slate-800 p-6 rounded-2xl w-full max-w-md border border-slate-700">
+            <h2 class="text-xl font-bold mb-2 text-blue-400">Load Game</h2>
+            <p class="text-[10px] text-slate-400 mb-4 uppercase font-bold">Paste moves (e.g. e4 e5 Nf3...) or a PGN string</p>
+            <textarea id="pgn-input" class="w-full h-40 bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs mb-4 font-mono text-slate-300 focus:outline-none focus:border-blue-500" placeholder="1. e4 e5 2. Nf3 Nc6..."></textarea>
+            <div class="flex gap-2">
+                <button onclick="$('#pgn-modal').addClass('hidden')" class="flex-1 py-2 bg-slate-700 rounded font-bold text-xs">CANCEL</button>
+                <button id="confirm-pgn-load" class="flex-1 py-2 bg-blue-600 rounded font-bold text-xs">LOAD GAME</button>
+            </div>
+        </div>
+    </div>
+
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
+        <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">You Won!</h2>
             <div id="modal-reward" class="text-amber-400 font-bold text-xl mb-4"></div>
             <p id="modal-msg" class="text-slate-300 mb-6"></p>
-            <button onclick="closeModal()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Continue</button>
+            <button onclick="$('#game-over-modal').addClass('hidden'); resetGame();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Continue</button>
         </div>
     </div>
-
-    <div id="promotion-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-        <div class="bg-slate-800 p-6 rounded-2xl text-center max-w-xs border border-blue-500 shadow-2xl">
-            <h2 class="text-xl font-bold mb-4">Promote Pawn</h2>
-            <div class="grid grid-cols-2 gap-3" id="promotion-options"></div>
-        </div>
-    </div>
-
-    <div id="load-prompt-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div class="bg-slate-800 p-8 rounded-2xl w-full max-w-md border border-slate-600 shadow-2xl">
-            <h2 class="text-2xl font-bold mb-4">Paste Save Code</h2>
-            <textarea id="save-code-input" class="w-full h-32 bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs mb-4 focus:outline-none focus:border-blue-500 font-mono text-slate-300"></textarea>
-            <div class="flex gap-3">
-                <button onclick="$('#load-prompt-modal').addClass('hidden')" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition">Cancel</button>
-                <button id="confirm-load-btn" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Load Save</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-blue-600 text-white rounded-full font-bold shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 z-50 text-center min-w-[200px]"></div>
 
     <script>
-        // Sound Management
-        const SoundManager = {
-            ctx: null,
-            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
-            play(type) {
-                this.init();
-                const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain); gain.connect(this.ctx.destination);
-                const pack = activeSoundPack || 'classic';
-
-                if (pack === 'arcade') {
-                    if (type === 'move') {
-                        osc.type = 'square'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
-                        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-                        osc.start(now); osc.stop(now + 0.05);
-                    } else if (type === 'capture') {
-                        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
-                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-                        osc.start(now); osc.stop(now + 0.1);
-                    } else if (type === 'check') {
-                        osc.type = 'square'; osc.frequency.setValueAtTime(880, now); osc.frequency.setValueAtTime(1760, now + 0.05);
-                        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-                        osc.start(now); osc.stop(now + 0.15);
-                    }
-                } else if (pack === 'wood') {
-                    if (type === 'move') {
-                        osc.type = 'triangle'; osc.frequency.setValueAtTime(150, now); 
-                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-                        osc.start(now); osc.stop(now + 0.08);
-                    } else if (type === 'capture') {
-                        osc.type = 'sine'; osc.frequency.setValueAtTime(100, now); 
-                        gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-                        osc.start(now); osc.stop(now + 0.12);
-                    } else if (type === 'check') {
-                        osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now); 
-                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-                        osc.start(now); osc.stop(now + 0.2);
-                    }
-                } else {
-                    if (type === 'move') {
-                        osc.type = 'triangle'; osc.frequency.setValueAtTime(350, now); osc.frequency.exponentialRampToValueAtTime(250, now + 0.1);
-                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                        osc.start(now); osc.stop(now + 0.1);
-                    } else if (type === 'capture') {
-                        osc.type = 'square'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
-                        gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-                        osc.start(now); osc.stop(now + 0.15);
-                    } else if (type === 'check') {
-                        osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-                        gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-                        osc.start(now); osc.stop(now + 0.2);
-                    }
-                }
-            }
-        };
-
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
-        const pieceSkins = [
-            { id: 'wikipedia', name: 'Classic', cost: 0, url: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' },
-            { id: 'alpha', name: 'Alpha', cost: 1000, url: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/alpha/{piece}.svg' },
-            { id: 'cburnett', name: 'Lichess', cost: 2500, url: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/{piece}.svg' },
-            { id: 'pixel', name: 'Retro', cost: 10000, url: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/pixel/{piece}.svg' }
-        ];
-
-        const boardThemes = [
-            { id: 'classic', name: 'Wood', cost: 0, class: '' },
-            { id: 'forest', name: 'Forest', cost: 500, class: 'theme-forest' },
-            { id: 'ocean', name: 'Ocean', cost: 1000, class: 'theme-ocean' },
-            { id: 'dark', name: 'Dark', cost: 5000, class: 'theme-dark' }
-        ];
-
-        const soundPacks = [
-            { id: 'classic', name: 'Classic', cost: 0 },
-            { id: 'arcade', name: 'Arcade', cost: 750 },
-            { id: 'wood', name: 'Thud', cost: 1500 }
-        ];
-
-        const levels = [];
-        for (let i = 0; i <= 20.01; i += 0.1) {
-            let name = i < 3 ? "Novice" : i < 7 ? "Beginner" : i < 12 ? "Intermediate" : i < 16 ? "Advanced" : i < 19 ? "Expert" : i < 20 ? "Master" : "Grandmaster";
-            const idFixed = parseFloat(i.toFixed(1));
-            levels.push({ id: idFixed, skill: Math.floor(i), name, elo: Math.round(500 + (idFixed * 125)) });
-        }
-
-        let coins = parseFloat(localStorage.getItem('sf_coins_v5')) || 0;
-        let currentLevel = parseFloat(localStorage.getItem('sf_unlocked_level_v5')) || 0;
-        let rebirths = parseInt(localStorage.getItem('sf_rebirths_v5')) || 1;
-        let activeLevel = currentLevel;
-        let ownedItems = JSON.parse(localStorage.getItem('sf_owned_items_v5')) || ['wikipedia', 'classic', 'classic'];
-        let activeSkin = localStorage.getItem('sf_active_skin_v5') || 'wikipedia';
-        let activeBoard = localStorage.getItem('sf_active_board_v5') || 'classic';
-        let activeSoundPack = localStorage.getItem('sf_active_sounds_v5') || 'classic';
-
+        // Game State
         let game = new Chess();
         let board = null;
         let stockfish = null;
         let playerColor = 'w';
-        let pendingPromotion = null;
+        let currentMode = 'play'; 
+        let historyIndex = -1; 
+        let moveHistory = []; 
+
+        // Persistence
+        let coins = parseFloat(localStorage.getItem('sf_coins_v6')) || 0;
+        let currentLevel = parseFloat(localStorage.getItem('sf_unlocked_v6')) || 0;
+        let activeLevel = currentLevel;
+        let rebirths = parseInt(localStorage.getItem('sf_rebirths_v6')) || 1;
+        let ownedItems = JSON.parse(localStorage.getItem('sf_owned_v6')) || ['wikipedia', 'classic'];
+        let activeSkin = localStorage.getItem('sf_skin_v6') || 'wikipedia';
+        let activeBoard = localStorage.getItem('sf_board_v6') || 'classic';
+
+        const pieceSkins = [
+            { id: 'wikipedia', name: 'Classic', url: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' },
+            { id: 'alpha', name: 'Alpha', url: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/alpha/{piece}.svg' },
+            { id: 'cburnett', name: 'Lichess', url: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/{piece}.svg' }
+        ];
+
+        const boardThemes = [
+            { id: 'classic', name: 'Wood', class: '' },
+            { id: 'forest', name: 'Forest', class: 'theme-forest' },
+            { id: 'ocean', name: 'Ocean', class: 'theme-ocean' },
+            { id: 'dark', name: 'Dark', class: 'theme-dark' }
+        ];
+
+        const levels = [];
+        for (let i = 0; i <= 20.01; i += 0.5) {
+            levels.push({ id: i, skill: Math.floor(i), elo: Math.round(500 + (i * 125)) });
+        }
 
         function updateCoins(amt) {
             coins = parseFloat((coins + amt).toFixed(2));
-            localStorage.setItem('sf_coins_v5', coins);
+            localStorage.setItem('sf_coins_v6', coins);
             $('#coin-display').text(Math.floor(coins).toLocaleString());
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'play') {
+                $('#mode-play').addClass('bg-blue-600 text-white').removeClass('bg-slate-700 text-slate-300');
+                $('#mode-analyze').removeClass('bg-blue-600 text-white').addClass('bg-slate-700 text-slate-300');
+                if (game.turn() !== playerColor && !game.game_over()) triggerEngine();
+            } else {
+                $('#mode-analyze').addClass('bg-blue-600 text-white').removeClass('bg-slate-700 text-slate-300');
+                $('#mode-play').removeClass('bg-blue-600 text-white').addClass('bg-slate-700 text-slate-300');
+            }
         }
 
         function switchTab(tab) {
@@ -300,8 +250,8 @@
                 $('#content-levels').removeClass('hidden').addClass('flex');
                 $('#content-shop').addClass('hidden').removeClass('flex');
             } else {
-                $('#content-shop').removeClass('hidden').addClass('flex');
                 $('#content-levels').addClass('hidden').removeClass('flex');
+                $('#content-shop').removeClass('hidden').addClass('flex');
                 renderShop();
             }
         }
@@ -309,87 +259,41 @@
         function renderShop() {
             const bShop = $('#board-shop').empty();
             const pShop = $('#piece-shop').empty();
-            const sShop = $('#sound-shop').empty();
-            $('#multi-display').text(`${rebirths}x Earnings`);
-
             boardThemes.forEach(t => {
-                const owned = ownedItems.includes(t.id);
                 const active = activeBoard === t.id;
-                bShop.append(`
-                    <button onclick="buyItem('${t.id}', 'board', ${t.cost})" class="p-2 text-[10px] rounded border transition ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 bg-slate-700/50 hover:bg-slate-600'} flex flex-col items-center">
-                        <span class="font-bold">${t.name}</span>
-                        <span class="${owned ? 'text-emerald-400' : 'text-amber-400'}">${owned ? (active ? 'Active' : 'Equip') : '🪙 '+t.cost.toLocaleString()}</span>
-                    </button>
-                `);
+                bShop.append(`<button onclick="equip('board', '${t.id}')" class="p-2 text-[10px] rounded border ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700'}">${t.name}</button>`);
             });
-
             pieceSkins.forEach(s => {
-                const owned = ownedItems.includes(s.id);
                 const active = activeSkin === s.id;
-                pShop.append(`
-                    <button onclick="buyItem('${s.id}', 'piece', ${s.cost})" class="p-2 text-[10px] rounded border transition ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 bg-slate-700/50 hover:bg-slate-600'} flex flex-col items-center">
-                        <span class="font-bold">${s.name}</span>
-                        <span class="${owned ? 'text-emerald-400' : 'text-amber-400'}">${owned ? (active ? 'Active' : 'Equip') : '🪙 '+s.cost.toLocaleString()}</span>
-                    </button>
-                `);
-            });
-
-            soundPacks.forEach(sp => {
-                const owned = ownedItems.includes(sp.id);
-                const active = activeSoundPack === sp.id;
-                sShop.append(`
-                    <button onclick="buyItem('${sp.id}', 'sounds', ${sp.cost})" class="p-2 text-[10px] rounded border transition ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 bg-slate-700/50 hover:bg-slate-600'} flex flex-col items-center">
-                        <span class="font-bold">${sp.name}</span>
-                        <span class="${owned ? 'text-emerald-400' : 'text-amber-400'}">${owned ? (active ? 'Active' : 'Equip') : '🪙 '+sp.cost.toLocaleString()}</span>
-                    </button>
-                `);
+                pShop.append(`<button onclick="equip('piece', '${s.id}')" class="p-2 text-[10px] rounded border ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700'}">${s.name}</button>`);
             });
         }
 
-        function buyItem(id, type, cost) {
-            if (ownedItems.includes(id)) {
-                if (type === 'board') activeBoard = id;
-                else if (type === 'piece') activeSkin = id;
-                else activeSoundPack = id;
-                showToast("Equipped!");
-            } else {
-                if (coins >= cost) {
-                    updateCoins(-cost);
-                    ownedItems.push(id);
-                    localStorage.setItem('sf_owned_items_v5', JSON.stringify(ownedItems));
-                    if (type === 'board') activeBoard = id;
-                    else if (type === 'piece') activeSkin = id;
-                    else activeSoundPack = id;
-                    showToast("Purchased & Equipped!");
-                } else {
-                    showToast("Not enough coins!");
-                    return;
-                }
-            }
-            localStorage.setItem('sf_active_skin_v5', activeSkin);
-            localStorage.setItem('sf_active_board_v5', activeBoard);
-            localStorage.setItem('sf_active_sounds_v5', activeSoundPack);
+        function equip(type, id) {
+            if (type === 'board') activeBoard = id;
+            else activeSkin = id;
+            localStorage.setItem('sf_board_v6', activeBoard);
+            localStorage.setItem('sf_skin_v6', activeSkin);
             applyVisuals();
             renderShop();
         }
 
         function applyVisuals() {
-            if (!board) return;
             const theme = boardThemes.find(t => t.id === activeBoard);
-            $('#board').removeClass('theme-forest theme-ocean theme-dark').addClass(theme.class);
             const skin = pieceSkins.find(s => s.id === activeSkin);
+            $('#board').removeClass('theme-forest theme-ocean theme-dark').addClass(theme.class);
+            
             const config = {
                 draggable: true,
                 position: game.fen(),
-                orientation: playerColor === 'w' ? 'white' : 'black',
-                onDragStart: (s, p) => !game.game_over() && game.turn() === playerColor && p.startsWith(playerColor),
+                orientation: board ? board.orientation() : (playerColor === 'w' ? 'white' : 'black'),
+                onDragStart: (s, p) => !game.game_over() && (currentMode === 'analyze' || game.turn() === playerColor),
                 onDrop: onDrop,
                 onSnapEnd: () => board.position(game.fen()),
                 pieceTheme: skin.url
             };
-            board.destroy();
+            if (board) board.destroy();
             board = Chessboard('board', config);
-            updateCapturedPieces();
         }
 
         function initLevels() {
@@ -398,279 +302,218 @@
                 const isLocked = lvl.id > currentLevel;
                 const isActive = Math.abs(lvl.id - activeLevel) < 0.01;
                 list.append(`
-                    <div class="level-card p-2 rounded-lg border transition ${isLocked ? 'locked' : 'hover:bg-slate-700 cursor-pointer'} ${isActive ? 'active' : 'bg-slate-700/50 border-transparent'}" 
-                         onclick="selectLevel(${lvl.id})">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-[11px]">Level ${lvl.id.toFixed(1)}</span>
-                            ${isLocked ? '<span class="text-[10px]">🔒</span>' : '<span class="text-[10px] text-emerald-400">✓</span>'}
-                        </div>
-                        <div class="flex justify-between items-center text-[9px] uppercase tracking-wider text-slate-400">
+                    <div onclick="selectLevel(${lvl.id})" class="level-card p-2 rounded border transition ${isLocked ? 'locked' : 'cursor-pointer'} ${isActive ? 'active' : 'bg-slate-700/50 border-transparent'}">
+                        <div class="flex justify-between text-[10px] font-bold">
+                            <span>Level ${lvl.id.toFixed(1)}</span>
                             <span>ELO ${lvl.elo}</span>
-                            <span class="text-amber-500">🪙 ${(lvl.id * rebirths).toFixed(1)}</span>
                         </div>
                     </div>
                 `);
             });
-            if (currentLevel >= 20) $('#rebirth-container').removeClass('hidden');
-            $('#rebirth-desc').text(`Next Multiplier: ${rebirths + 1}x`);
         }
 
         function selectLevel(id) {
             if (id > currentLevel) return;
             activeLevel = id;
-            updateLevelInfo();
             initLevels();
             resetGame();
         }
 
-        function updateLevelInfo() {
-            const lvl = levels.find(l => Math.abs(l.id - activeLevel) < 0.01);
-            $('#current-level-title').text(`Level ${lvl.id.toFixed(1)}: ${lvl.name}`);
-            $('#level-desc').text(`ELO: ${lvl.elo}`);
-            $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
-            const potentialReward = (activeLevel * rebirths).toFixed(1);
-            $('#level-reward-tag').text(`Reward: ${potentialReward} Coins`);
-        }
-
-        function updateCapturedPieces() {
-            const skin = pieceSkins.find(s => s.id === activeSkin);
-            const initialPieces = { w: { p: 8, n: 2, b: 2, r: 2, q: 1 }, b: { p: 8, n: 2, b: 2, r: 2, q: 1 } };
-            const currentPieces = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
-
-            game.board().forEach(row => { row.forEach(square => { if (square) currentPieces[square.color][square.type]++; }); });
-            const captured = { w: [], b: [] }; 
-            const values = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-            let materialScore = 0;
-
-            ['p','n','b','r','q'].forEach(type => {
-                const whiteLost = initialPieces.w[type] - currentPieces.w[type];
-                const blackLost = initialPieces.b[type] - currentPieces.b[type];
-                for(let i=0; i<whiteLost; i++) captured.w.push(type);
-                for(let i=0; i<blackLost; i++) captured.b.push(type);
-                materialScore += (blackLost * values[type]) - (whiteLost * values[type]);
-            });
-
-            const wEl = $('#captures-white').empty();
-            const bEl = $('#captures-black').empty();
-            captured.w.forEach(type => {
-                const url = skin.url.replace('{piece}', 'w' + type.toUpperCase());
-                wEl.append(`<div class="captured-piece" style="background-image: url('${url}')"></div>`);
-            });
-            captured.b.forEach(type => {
-                const url = skin.url.replace('{piece}', 'b' + type.toUpperCase());
-                bEl.append(`<div class="captured-piece" style="background-image: url('${url}')"></div>`);
-            });
-
-            const advEl = $('#material-advantage');
-            if (materialScore === 0) advEl.text('Even').css('color', '#64748b');
-            else if (materialScore > 0) advEl.text(`+${materialScore}`).css('color', '#10b981');
-            else advEl.text(`${materialScore}`).css('color', '#ef4444');
-        }
-
-        async function createStockfishWorker() {
-            const blobCode = `importScripts("${STOCKFISH_URL}");`;
-            const blob = new Blob([blobCode], { type: 'application/javascript' });
-            return new Worker(URL.createObjectURL(blob));
-        }
-
         async function initEngine() {
             if (stockfish) stockfish.terminate();
-            stockfish = await createStockfishWorker();
+            const blob = new Blob([`importScripts("${STOCKFISH_URL}");`], { type: 'application/javascript' });
+            stockfish = new Worker(URL.createObjectURL(blob));
             stockfish.onmessage = (e) => {
                 const line = e.data;
                 if (line.includes('score cp')) {
-                    const scoreMatch = line.match(/score cp (-?\d+)/);
-                    if (scoreMatch) {
-                        let cp = parseInt(scoreMatch[1]);
-                        if (game.turn() === 'b') cp = -cp;
-                        updateEvalBar(cp);
-                    }
+                    const match = line.match(/score cp (-?\d+)/);
+                    if (match) updateEvalBar(parseInt(match[1]) * (game.turn() === 'b' ? -1 : 1));
                 } else if (line.includes('bestmove')) {
-                    const moveMatch = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
-                    if (moveMatch && game.turn() !== playerColor) makeBotMove(moveMatch[1]);
+                    const match = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
+                    if (match && currentMode === 'play' && game.turn() !== playerColor) {
+                        const move = game.move(match[1], { sloppy: true });
+                        recordMove(move);
+                        board.position(game.fen());
+                        updateStatus();
+                    }
                 }
             };
             stockfish.postMessage('uci');
-            const lvlObj = levels.find(l => Math.abs(l.id - activeLevel) < 0.01);
-            stockfish.postMessage(`setoption name Skill Level value ${lvlObj.skill}`);
-            stockfish.postMessage('isready');
+            stockfish.postMessage(`setoption name Skill Level value ${Math.floor(activeLevel)}`);
         }
 
         function updateEvalBar(score) {
-            const evalInPawns = score / 100;
-            const displayStr = evalInPawns > 0 ? `+${evalInPawns.toFixed(1)}` : evalInPawns.toFixed(1);
-            
-            let percentage = 50 + (evalInPawns * 5); 
-            percentage = Math.max(5, Math.min(95, percentage));
-            
-            $('#eval-bar-white').css('height', `${percentage}%`);
-            $('#eval-text').text(displayStr);
+            const val = Math.max(-10, Math.min(10, score / 100));
+            const pct = 50 + (val * 5);
+            $('#eval-bar-white').css('height', `${pct}%`);
+            $('#eval-text').text((score/100).toFixed(1)).toggleClass('on-white', pct > 50).toggleClass('on-black', pct <= 50);
+        }
 
-            // Shift text location and color based on which side is "bigger"
-            if (percentage > 50) {
-                $('#eval-text').removeClass('on-black').addClass('on-white');
-            } else {
-                $('#eval-text').removeClass('on-white').addClass('on-black');
+        function recordMove(move) {
+            if (!move) return;
+            if (historyIndex < moveHistory.length - 1) {
+                moveHistory = moveHistory.slice(0, historyIndex + 1);
             }
+            moveHistory.push({
+                fen: game.fen(),
+                san: move.san
+            });
+            historyIndex = moveHistory.length - 1;
+            renderHistory();
         }
 
-        function makeBotMove(moveStr) {
-            const move = game.move(moveStr, { sloppy: true });
+        function renderHistory() {
+            const list = $('#move-history-list').empty();
+            moveHistory.forEach((item, i) => {
+                const isWhite = i % 2 === 0;
+                const turnNum = Math.floor(i / 2) + 1;
+                if (isWhite) {
+                    list.append(`<div class="text-slate-500 text-[10px] col-span-2 mt-1">Move ${turnNum}</div>`);
+                }
+                const active = i === historyIndex ? 'active' : '';
+                list.append(`<div onclick="goToMove(${i})" class="move-item ${active}">${item.san}</div>`);
+            });
+            const container = document.getElementById('move-history-list');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function goToMove(index) {
+            if (index < -1 || index >= moveHistory.length) return;
+            historyIndex = index;
+            const fen = index === -1 ? 'start' : moveHistory[index].fen;
+            game.load(fen === 'start' ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : fen);
             board.position(game.fen());
-            handleSounds(move);
+            renderHistory();
             updateStatus();
-        }
-
-        function handleSounds(move) {
-            if (game.in_check()) SoundManager.play('check');
-            else if (move && (move.flags.includes('c') || move.flags.includes('e'))) SoundManager.play('capture');
-            else SoundManager.play('move');
         }
 
         function onDrop(source, target) {
-            const piece = game.get(source);
-            if (!piece) return 'snapback';
-            const isPromotion = piece.type === 'p' && ((piece.color === 'w' && target[1] === '8') || (piece.color === 'b' && target[1] === '1'));
-            
-            if (isPromotion) {
-                const moves = game.moves({ verbose: true });
-                const valid = moves.some(m => m.from === source && m.to === target);
-                if (!valid) return 'snapback';
-                showPromotionModal(source, target);
-                return;
-            }
-
-            const move = game.move({ from: source, to: target });
+            const move = game.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
-            handleSounds(move);
+            
+            recordMove(move);
             updateStatus();
-            if (!game.game_over()) setTimeout(() => {
-                stockfish.postMessage(`position fen ${game.fen()}`);
-                stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
-            }, 250);
+            
+            if (currentMode === 'play' && !game.game_over()) {
+                setTimeout(triggerEngine, 250);
+            }
         }
 
-        function showPromotionModal(from, to) {
-            pendingPromotion = { from, to };
-            const options = $('#promotion-options').empty();
-            const skin = pieceSkins.find(s => s.id === activeSkin);
-            const pieces = [{ type: 'q', name: 'Queen' }, { type: 'r', name: 'Rook' }, { type: 'b', name: 'Bishop' }, { type: 'n', name: 'Knight' }];
-            pieces.forEach(p => {
-                const url = skin.url.replace('{piece}', playerColor + p.type.toUpperCase());
-                options.append(`<button onclick="handlePromotion('${p.type}')" class="p-4 bg-slate-700 hover:bg-blue-600 rounded-xl transition flex flex-col items-center gap-2 group"><img src="${url}" class="w-12 h-12 group-hover:scale-110 transition"><span class="text-xs font-bold uppercase">${p.name}</span></button>`);
-            });
-            $('#promotion-modal').removeClass('hidden');
-        }
-
-        function handlePromotion(pieceType) {
-            const move = game.move({ from: pendingPromotion.from, to: pendingPromotion.to, promotion: pieceType });
-            $('#promotion-modal').addClass('hidden');
-            board.position(game.fen());
-            handleSounds(move);
-            updateStatus();
-            setTimeout(() => {
-                stockfish.postMessage(`position fen ${game.fen()}`);
-                stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
-            }, 250);
+        function triggerEngine() {
+            if (currentMode !== 'play' || game.game_over()) return;
+            stockfish.postMessage(`position fen ${game.fen()}`);
+            stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
         }
 
         function updateStatus() {
-            const isPlayerTurn = game.turn() === playerColor;
-            let status = game.in_checkmate() ? 'Checkmate!' : game.in_draw() ? 'Draw' : (isPlayerTurn ? "Your Turn" : "Thinking...");
+            let status = game.in_checkmate() ? 'Checkmate!' : game.in_draw() ? 'Draw' : (game.turn() === 'w' ? "White's Turn" : "Black's Turn");
             $('#game-status').text(status);
-            updateCapturedPieces();
-            if (game.game_over()) handleGameOver();
+            $('#current-level-title').text(`Level ${activeLevel.toFixed(1)}`);
+            $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
+            
+            if (game.game_over() && currentMode === 'play') handleGameOver();
+            
+            if (currentMode === 'analyze') {
+                stockfish.postMessage(`position fen ${game.fen()}`);
+                stockfish.postMessage(`go depth 10`);
+            }
         }
 
         function handleGameOver() {
             const winner = game.in_checkmate() ? (game.turn() === 'b' ? 'white' : 'black') : 'draw';
             const playerWon = (winner === 'white' && playerColor === 'w') || (winner === 'black' && playerColor === 'b');
             $('#game-over-modal').removeClass('hidden');
-            const coinGain = activeLevel * rebirths;
+            const reward = activeLevel * rebirths;
             if (playerWon) {
+                updateCoins(reward);
                 $('#modal-title').text('Victory!').addClass('text-emerald-400');
-                updateCoins(coinGain);
-                $('#modal-reward').text(`+ ${coinGain.toFixed(1)} Coins`);
-                if (Math.abs(activeLevel - currentLevel) < 0.01 && currentLevel < 20) {
-                    currentLevel = parseFloat((currentLevel + 0.1).toFixed(1));
-                    localStorage.setItem('sf_unlocked_level_v5', currentLevel);
-                    $('#modal-msg').text(`Unlocked Level ${currentLevel.toFixed(1)}!`);
-                    initLevels();
-                } else $('#modal-msg').text(`Level ${activeLevel.toFixed(1)} Mastered!`);
-            } else if (winner === 'draw') {
-                $('#modal-title').text('Draw').removeClass('text-emerald-400');
-                $('#modal-msg').text('Close match.');
+                $('#modal-reward').text(`+ ${reward.toFixed(1)} Coins`);
+                if (activeLevel >= currentLevel && currentLevel < 20) {
+                    currentLevel = parseFloat((currentLevel + 0.5).toFixed(1));
+                    localStorage.setItem('sf_unlocked_v6', currentLevel);
+                }
             } else {
-                $('#modal-title').text('Defeated').addClass('text-red-400').removeClass('text-emerald-400');
-                $('#modal-msg').text('Stockfish prevails.');
+                $('#modal-title').text(winner === 'draw' ? 'Draw' : 'Defeat').removeClass('text-emerald-400');
+                $('#modal-reward').text('');
             }
         }
-
-        function closeModal() { $('#game-over-modal').addClass('hidden'); resetGame(); }
 
         async function resetGame() {
             game = new Chess();
+            moveHistory = [];
+            historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
-            if (board) { board.orientation(playerColor === 'w' ? 'white' : 'black'); board.start(); }
-            updateLevelInfo();
+            board.orientation(playerColor === 'w' ? 'white' : 'black');
+            board.start();
+            renderHistory();
             updateEvalBar(0);
-            updateCapturedPieces();
             await initEngine();
             updateStatus();
-            if (playerColor === 'b') {
-                stockfish.postMessage(`position fen ${game.fen()}`);
-                stockfish.postMessage(`go movetime 500`);
-            }
+            if (playerColor === 'b' && currentMode === 'play') triggerEngine();
         }
 
-        function showToast(msg) {
-            $('#toast').text(msg).css('opacity', 1);
-            setTimeout(() => $('#toast').css('opacity', 0), 3000);
+        function copyMovesToClipboard() {
+            const moveList = moveHistory.map(m => m.san).join(' ');
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = moveList;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            
+            const toast = document.getElementById('copy-toast');
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2000);
         }
+
+        $(document).keydown((e) => {
+            if ($('#pgn-modal').is(':visible')) return;
+            if (e.keyCode === 37) { 
+                goToMove(historyIndex - 1);
+            } else if (e.keyCode === 39) { 
+                goToMove(historyIndex + 1);
+            }
+        });
 
         $(document).ready(async () => {
-            const skin = pieceSkins.find(s => s.id === activeSkin);
-            board = Chessboard('board', {
-                draggable: true, position: 'start',
-                onDragStart: (s, p) => !game.game_over() && game.turn() === playerColor && p.startsWith(playerColor),
-                onDrop: onDrop,
-                onSnapEnd: () => board.position(game.fen()),
-                pieceTheme: skin.url
-            });
-            $('#reset-btn').on('click', resetGame);
-            $('#undo-btn').on('click', () => { game.undo(); game.undo(); board.position(game.fen()); updateStatus(); });
-            $('#rebirth-btn').on('click', () => {
-                rebirths++;
-                localStorage.setItem('sf_rebirths_v5', rebirths);
-                currentLevel = 0; activeLevel = 0;
-                localStorage.setItem('sf_unlocked_level_v5', currentLevel);
-                location.reload();
-            });
-            $('#save-btn').on('click', () => {
-                const data = btoa(JSON.stringify({ u: currentLevel, coins, r: rebirths, items: ownedItems, s: activeSkin, b: activeBoard, snd: activeSoundPack }));
-                const el = document.createElement('textarea'); el.value = "SFM-V5-" + data;
-                document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-                showToast("Save Code Copied!");
-            });
-            $('#load-btn').on('click', () => $('#load-prompt-modal').removeClass('hidden'));
-            $('#confirm-load-btn').on('click', () => {
-                try {
-                    const code = $('#save-code-input').val().trim().replace("SFM-V5-", "");
-                    const data = JSON.parse(atob(code));
-                    localStorage.setItem('sf_unlocked_level_v5', data.u);
-                    localStorage.setItem('sf_coins_v5', data.coins);
-                    localStorage.setItem('sf_rebirths_v5', data.r);
-                    localStorage.setItem('sf_owned_items_v5', JSON.stringify(data.items));
-                    localStorage.setItem('sf_active_skin_v5', data.s);
-                    localStorage.setItem('sf_active_board_v5', data.b);
-                    localStorage.setItem('sf_active_sounds_v5', data.snd);
-                    location.reload();
-                } catch(e) { showToast("Invalid Code!"); }
-            });
-            const theme = boardThemes.find(t => t.id === activeBoard);
-            $('#board').addClass(theme.class);
-            updateCoins(0);
+            applyVisuals();
             initLevels();
+            updateCoins(0);
+
+            $('#reset-btn').click(resetGame);
+            $('#copy-moves-btn').click(copyMovesToClipboard);
+            $('#flip-btn').click(() => board.flip());
+            
+            $('#import-pgn-btn').click(() => $('#pgn-modal').removeClass('hidden'));
+            $('#confirm-pgn-load').click(() => {
+                const input = $('#pgn-input').val().trim();
+                if (!input) return;
+                const tempGame = new Chess();
+                const success = tempGame.load_pgn(input) || (function(){
+                    const moves = input.split(/\s+/);
+                    for(let m of moves) if(!tempGame.move(m, {sloppy:true})) return false;
+                    return true;
+                })();
+
+                if (success) {
+                    game = new Chess();
+                    moveHistory = [];
+                    const moves = tempGame.history();
+                    moves.forEach(m => {
+                        const mv = game.move(m);
+                        moveHistory.push({ fen: game.fen(), san: mv.san });
+                    });
+                    historyIndex = moveHistory.length - 1;
+                    setMode('analyze');
+                    renderHistory();
+                    board.position(game.fen());
+                    $('#pgn-modal').addClass('hidden');
+                    updateStatus();
+                } else {
+                    alert("Invalid Moves or PGN Format");
+                }
+            });
+
             await resetGame();
             $(window).resize(() => board && board.resize());
         });
