@@ -116,7 +116,16 @@
 
     <!-- Middle: Game Board -->
     <div class="flex-1 flex flex-col items-center justify-start gap-4">
-        <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700">
+        <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 relative">
+            
+            <!-- Floating Resume Overlay -->
+            <div id="resume-overlay" class="hidden absolute top-20 left-0 right-0 z-20 flex justify-center pointer-events-none">
+                <button onclick="resumeToLive()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold text-xs shadow-2xl pointer-events-auto flex items-center gap-2 transform transition hover:scale-105 active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    RESUME LIVE MATCH
+                </button>
+            </div>
+
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h2 id="current-level-title" class="text-md font-bold text-blue-400">Level 0</h2>
@@ -145,7 +154,7 @@
     <div class="w-full lg:w-64 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh] border border-slate-700">
         <div class="flex flex-col">
             <h3 class="text-xs font-bold uppercase text-slate-400 mb-1">Move History</h3>
-            <p class="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">Current Match</p>
+            <p id="history-label" class="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">Live Match</p>
         </div>
         
         <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700">
@@ -153,7 +162,7 @@
         </div>
 
         <div class="pt-2">
-            <p class="text-[9px] text-slate-500 text-center italic leading-tight">Use arrow keys to review moves.</p>
+            <p class="text-[9px] text-slate-500 text-center italic leading-tight">Reviewing history won't affect the bot's turn. Use arrows to browse.</p>
         </div>
     </div>
 
@@ -170,11 +179,11 @@
     <script>
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
-        let game = new Chess();
+        let liveGame = new Chess();
         let board = null;
         let stockfish = null;
-        let moveHistory = [];
-        let historyIndex = -1;
+        let moveHistory = []; // Stores objects: { fen, san }
+        let historyIndex = -1; // Current viewed position index
         let playerColor = 'w';
 
         // Persistence
@@ -251,11 +260,19 @@
             
             const config = {
                 draggable: true,
-                position: game.fen(),
+                position: liveGame.fen(),
                 orientation: playerColor === 'w' ? 'white' : 'black',
-                onDragStart: (s, p) => !game.game_over() && game.turn() === playerColor && historyIndex === moveHistory.length - 1,
+                onDragStart: (s, p) => {
+                    // Only allow dragging if it's the player's turn AND we are viewing the latest move
+                    const isLatest = historyIndex === moveHistory.length - 1;
+                    return !liveGame.game_over() && liveGame.turn() === playerColor && isLatest;
+                },
                 onDrop: onDrop,
-                onSnapEnd: () => board.position(game.fen()),
+                onSnapEnd: () => {
+                    // Always snap back to whatever FEN was active for that index
+                    const fen = historyIndex === -1 ? 'start' : moveHistory[historyIndex].fen;
+                    board.position(fen);
+                },
                 pieceTheme: skin.url
             };
             if (board) board.destroy();
@@ -293,14 +310,19 @@
                 const line = e.data;
                 if (line.includes('score cp')) {
                     const match = line.match(/score cp (-?\d+)/);
-                    if (match) updateEvalBar(parseInt(match[1]) * (game.turn() === 'b' ? -1 : 1));
+                    if (match) updateEvalBar(parseInt(match[1]) * (liveGame.turn() === 'b' ? -1 : 1));
                 } else if (line.includes('bestmove')) {
                     const match = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
-                    if (match && game.turn() !== playerColor) {
-                        const move = game.move(match[1], { sloppy: true });
-                        recordMove(move);
-                        board.position(game.fen());
-                        updateStatus();
+                    if (match && liveGame.turn() !== playerColor && !liveGame.game_over()) {
+                        const move = liveGame.move(match[1], { sloppy: true });
+                        if (move) {
+                            recordMove(move);
+                            // If user is currently looking at the live game, update the board
+                            if (historyIndex === moveHistory.length - 1) {
+                                board.position(liveGame.fen());
+                            }
+                            updateStatus();
+                        }
                     }
                 }
             };
@@ -317,10 +339,11 @@
 
         function recordMove(move) {
             if (!move) return;
+            // Clear future history if we are branching from a past move (though in "PLAY ONLY" this shouldn't happen unless we add an Undo feature)
             if (historyIndex < moveHistory.length - 1) {
                 moveHistory = moveHistory.slice(0, historyIndex + 1);
             }
-            moveHistory.push({ fen: game.fen(), san: move.san });
+            moveHistory.push({ fen: liveGame.fen(), san: move.san });
             historyIndex = moveHistory.length - 1;
             renderHistory();
         }
@@ -336,51 +359,71 @@
                 list.append(`<div onclick="goToMove(${i})" class="move-item ${active}">${item.san}</div>`);
             });
             const container = document.getElementById('move-history-list');
-            container.scrollTop = container.scrollHeight;
+            // Auto-scroll to active item if it's the latest
+            if (historyIndex === moveHistory.length - 1) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
 
         function goToMove(index) {
             if (index < -1 || index >= moveHistory.length) return;
             historyIndex = index;
+            
             const fen = index === -1 ? 'start' : moveHistory[index].fen;
-            game.load(fen === 'start' ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : fen);
-            board.position(game.fen());
+            board.position(fen);
+            
+            // Show resume overlay if we aren't at the end
+            if (historyIndex < moveHistory.length - 1) {
+                $('#resume-overlay').removeClass('hidden');
+                $('#history-label').text('Reviewing History...').addClass('text-amber-500').removeClass('text-blue-500');
+            } else {
+                $('#resume-overlay').addClass('hidden');
+                $('#history-label').text('Live Match').removeClass('text-amber-500').addClass('text-blue-500');
+            }
+
             renderHistory();
-            updateStatus();
+        }
+
+        function resumeToLive() {
+            goToMove(moveHistory.length - 1);
         }
 
         function onDrop(source, target) {
-            const move = game.move({ from: source, to: target, promotion: 'q' });
+            // Check if we are viewing the latest position
+            if (historyIndex !== moveHistory.length - 1) return 'snapback';
+
+            const move = liveGame.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
             
             recordMove(move);
             updateStatus();
             
-            if (!game.game_over()) {
+            if (!liveGame.game_over()) {
                 setTimeout(triggerEngine, 250);
             }
         }
 
         function triggerEngine() {
-            if (game.game_over()) return;
-            stockfish.postMessage(`position fen ${game.fen()}`);
+            if (liveGame.game_over()) return;
+            stockfish.postMessage(`position fen ${liveGame.fen()}`);
             stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
         }
 
         function updateStatus() {
-            let status = game.in_checkmate() ? 'Checkmate!' : game.in_draw() ? 'Draw' : (game.turn() === 'w' ? "White's Turn" : "Black's Turn");
+            let status = liveGame.in_checkmate() ? 'Checkmate!' : liveGame.in_draw() ? 'Draw' : (liveGame.turn() === 'w' ? "White's Turn" : "Black's Turn");
             $('#game-status').text(status);
             $('#current-level-title').text(`Level ${activeLevel.toFixed(1)}`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
             
-            if (game.game_over()) handleGameOver();
+            if (liveGame.game_over()) handleGameOver();
             
-            stockfish.postMessage(`position fen ${game.fen()}`);
+            // Eval is always calculated against the LIVE position, not the review position
+            stockfish.postMessage(`position fen ${liveGame.fen()}`);
             stockfish.postMessage(`go depth 12`);
         }
 
         function handleGameOver() {
-            const winner = game.in_checkmate() ? (game.turn() === 'b' ? 'white' : 'black') : 'draw';
+            const winner = liveGame.in_checkmate() ? (liveGame.turn() === 'b' ? 'white' : 'black') : 'draw';
             const playerWon = (winner === 'white' && playerColor === 'w') || (winner === 'black' && playerColor === 'b');
             $('#game-over-modal').removeClass('hidden');
             const reward = activeLevel * rebirths;
@@ -399,11 +442,14 @@
         }
 
         async function resetGame() {
-            game = new Chess();
+            liveGame = new Chess();
             moveHistory = [];
             historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
             
+            $('#resume-overlay').addClass('hidden');
+            $('#history-label').text('Live Match').removeClass('text-amber-500').addClass('text-blue-500');
+
             board.orientation(playerColor === 'w' ? 'white' : 'black');
             board.start();
             renderHistory();
