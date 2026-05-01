@@ -13,44 +13,45 @@
     <style>
         .level-card.locked { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
         .level-card.active { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.2); }
-        #board-container { display: flex; gap: 15px; width: 100%; max-width: 540px; margin: 0 auto; align-items: stretch; }
+        #board-container { display: flex; gap: 15px; width: 100%; max-width: 580px; margin: 0 auto; align-items: stretch; }
         #board { flex-grow: 1; }
         
         #eval-bar-container {
-            width: 20px;
-            background: #1e293b; /* Default black background */
-            border-radius: 4px;
+            width: 32px; /* Increased width */
+            background: #000000; /* Solid Black background for the black side */
+            border-radius: 6px;
             overflow: hidden;
             display: flex;
             flex-direction: column-reverse; /* White grows from bottom */
             position: relative;
             border: 2px solid #0f172a;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
         }
         #eval-bar-white { 
-            background: #f8fafc; 
+            background: #ffffff; /* Pure white for contrast */
             width: 100%; 
             height: 50%; 
-            transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1); 
+            transition: height 0.6s cubic-bezier(0.23, 1, 0.32, 1); 
         }
         #eval-text {
             position: absolute; 
             width: 100%; 
             text-align: center; 
-            font-size: 8px; 
-            font-weight: 900; 
+            font-size: 10px; /* Slightly larger text */
+            font-weight: 800; 
             z-index: 10; 
             left: 0; 
             pointer-events: none;
-            text-shadow: 0 0 2px rgba(0,0,0,0.2);
+            letter-spacing: -0.5px;
         }
-        #eval-text.on-white { bottom: 5px; color: #1e293b; }
-        #eval-text.on-black { top: 5px; color: #f8fafc; }
+        /* Position logic for text to stay visible */
+        #eval-text.on-white { bottom: 8px; color: #000; }
+        #eval-text.on-black { top: 8px; color: #fff; }
 
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         #level-list::-webkit-scrollbar { width: 4px; }
         #level-list::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
-        /* Board Themes */
         .theme-forest .white-1e1d7 { background-color: #edead0 !important; }
         .theme-forest .black-3c85d { background-color: #6c9463 !important; }
         .theme-ocean .white-1e1d7 { background-color: #dee3e6 !important; }
@@ -131,7 +132,7 @@
                 </div>
             </div>
 
-            <!-- Captured Pieces Header -->
+            <!-- Captured Pieces -->
             <div id="captured-container" class="flex justify-between px-2 mb-2 min-h-[30px] items-center bg-slate-900/40 rounded-lg p-1 border border-slate-700/50">
                 <div id="captures-white" class="flex items-center gap-0.5 opacity-80"></div>
                 <div id="material-advantage" class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Even</div>
@@ -153,7 +154,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Modals & Overlays -->
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">You Won!</h2>
@@ -166,9 +167,7 @@
     <div id="promotion-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
         <div class="bg-slate-800 p-6 rounded-2xl text-center max-w-xs border border-blue-500 shadow-2xl">
             <h2 class="text-xl font-bold mb-4">Promote Pawn</h2>
-            <div class="grid grid-cols-2 gap-3" id="promotion-options">
-                <!-- Dynamic choices -->
-            </div>
+            <div class="grid grid-cols-2 gap-3" id="promotion-options"></div>
         </div>
     </div>
 
@@ -183,11 +182,10 @@
         </div>
     </div>
 
-    <!-- Toast -->
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-blue-600 text-white rounded-full font-bold shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 z-50 text-center min-w-[200px]"></div>
 
     <script>
-        // --- Sound Manager ---
+        // Sound Management
         const SoundManager = {
             ctx: null,
             init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
@@ -197,7 +195,6 @@
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.connect(gain); gain.connect(this.ctx.destination);
-                
                 const pack = activeSoundPack || 'classic';
 
                 if (pack === 'arcade') {
@@ -228,7 +225,7 @@
                         gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
                         osc.start(now); osc.stop(now + 0.2);
                     }
-                } else { // Classic
+                } else {
                     if (type === 'move') {
                         osc.type = 'triangle'; osc.frequency.setValueAtTime(350, now); osc.frequency.exponentialRampToValueAtTime(250, now + 0.1);
                         gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
@@ -246,7 +243,6 @@
             }
         };
 
-        // --- Data ---
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
         const pieceSkins = [
@@ -276,7 +272,6 @@
             levels.push({ id: idFixed, skill: Math.floor(i), name, elo: Math.round(500 + (idFixed * 125)) });
         }
 
-        // --- State ---
         let coins = parseFloat(localStorage.getItem('sf_coins_v5')) || 0;
         let currentLevel = parseFloat(localStorage.getItem('sf_unlocked_level_v5')) || 0;
         let rebirths = parseInt(localStorage.getItem('sf_rebirths_v5')) || 1;
@@ -291,8 +286,6 @@
         let stockfish = null;
         let playerColor = 'w';
         let pendingPromotion = null;
-
-        // --- Core Functions ---
 
         function updateCoins(amt) {
             coins = parseFloat((coins + amt).toFixed(2));
@@ -439,24 +432,12 @@
             $('#level-reward-tag').text(`Reward: ${potentialReward} Coins`);
         }
 
-        // --- Capture Logic ---
         function updateCapturedPieces() {
             const skin = pieceSkins.find(s => s.id === activeSkin);
-            const initialPieces = {
-                w: { p: 8, n: 2, b: 2, r: 2, q: 1 },
-                b: { p: 8, n: 2, b: 2, r: 2, q: 1 }
-            };
-            const currentPieces = {
-                w: { p: 0, n: 0, b: 0, r: 0, q: 0 },
-                b: { p: 0, n: 0, b: 0, r: 0, q: 0 }
-            };
+            const initialPieces = { w: { p: 8, n: 2, b: 2, r: 2, q: 1 }, b: { p: 8, n: 2, b: 2, r: 2, q: 1 } };
+            const currentPieces = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
 
-            game.board().forEach(row => {
-                row.forEach(square => {
-                    if (square) currentPieces[square.color][square.type]++;
-                });
-            });
-
+            game.board().forEach(row => { row.forEach(square => { if (square) currentPieces[square.color][square.type]++; }); });
             const captured = { w: [], b: [] }; 
             const values = { p: 1, n: 3, b: 3, r: 5, q: 9 };
             let materialScore = 0;
@@ -464,16 +445,13 @@
             ['p','n','b','r','q'].forEach(type => {
                 const whiteLost = initialPieces.w[type] - currentPieces.w[type];
                 const blackLost = initialPieces.b[type] - currentPieces.b[type];
-                
                 for(let i=0; i<whiteLost; i++) captured.w.push(type);
                 for(let i=0; i<blackLost; i++) captured.b.push(type);
-                
                 materialScore += (blackLost * values[type]) - (whiteLost * values[type]);
             });
 
             const wEl = $('#captures-white').empty();
             const bEl = $('#captures-black').empty();
-
             captured.w.forEach(type => {
                 const url = skin.url.replace('{piece}', 'w' + type.toUpperCase());
                 wEl.append(`<div class="captured-piece" style="background-image: url('${url}')"></div>`);
@@ -489,7 +467,6 @@
             else advEl.text(`${materialScore}`).css('color', '#ef4444');
         }
 
-        // --- Engine & Gameplay ---
         async function createStockfishWorker() {
             const blobCode = `importScripts("${STOCKFISH_URL}");`;
             const blob = new Blob([blobCode], { type: 'application/javascript' });
@@ -505,7 +482,6 @@
                     const scoreMatch = line.match(/score cp (-?\d+)/);
                     if (scoreMatch) {
                         let cp = parseInt(scoreMatch[1]);
-                        // If Stockfish is evaluating for the side whose turn it is
                         if (game.turn() === 'b') cp = -cp;
                         updateEvalBar(cp);
                     }
@@ -521,19 +497,21 @@
         }
 
         function updateEvalBar(score) {
-            // score is centered around 0. 
-            // Positive = White advantage, Negative = Black advantage.
             const evalInPawns = score / 100;
             const displayStr = evalInPawns > 0 ? `+${evalInPawns.toFixed(1)}` : evalInPawns.toFixed(1);
             
-            // Map score to percentage. 0 = 50%. Max range +/- 10.0 eval.
             let percentage = 50 + (evalInPawns * 5); 
             percentage = Math.max(5, Math.min(95, percentage));
             
             $('#eval-bar-white').css('height', `${percentage}%`);
-            $('#eval-text').text(displayStr)
-                .toggleClass('on-white', percentage > 50)
-                .toggleClass('on-black', percentage <= 50);
+            $('#eval-text').text(displayStr);
+
+            // Shift text location and color based on which side is "bigger"
+            if (percentage > 50) {
+                $('#eval-text').removeClass('on-black').addClass('on-white');
+            } else {
+                $('#eval-text').removeClass('on-white').addClass('on-black');
+            }
         }
 
         function makeBotMove(moveStr) {
@@ -576,21 +554,10 @@
             pendingPromotion = { from, to };
             const options = $('#promotion-options').empty();
             const skin = pieceSkins.find(s => s.id === activeSkin);
-            const pieces = [
-                { type: 'q', name: 'Queen' },
-                { type: 'r', name: 'Rook' },
-                { type: 'b', name: 'Bishop' },
-                { type: 'n', name: 'Knight' }
-            ];
-
+            const pieces = [{ type: 'q', name: 'Queen' }, { type: 'r', name: 'Rook' }, { type: 'b', name: 'Bishop' }, { type: 'n', name: 'Knight' }];
             pieces.forEach(p => {
                 const url = skin.url.replace('{piece}', playerColor + p.type.toUpperCase());
-                options.append(`
-                    <button onclick="handlePromotion('${p.type}')" class="p-4 bg-slate-700 hover:bg-blue-600 rounded-xl transition flex flex-col items-center gap-2 group">
-                        <img src="${url}" class="w-12 h-12 group-hover:scale-110 transition">
-                        <span class="text-xs font-bold uppercase">${p.name}</span>
-                    </button>
-                `);
+                options.append(`<button onclick="handlePromotion('${p.type}')" class="p-4 bg-slate-700 hover:bg-blue-600 rounded-xl transition flex flex-col items-center gap-2 group"><img src="${url}" class="w-12 h-12 group-hover:scale-110 transition"><span class="text-xs font-bold uppercase">${p.name}</span></button>`);
             });
             $('#promotion-modal').removeClass('hidden');
         }
@@ -639,18 +606,12 @@
             }
         }
 
-        function closeModal() {
-            $('#game-over-modal').addClass('hidden');
-            resetGame();
-        }
+        function closeModal() { $('#game-over-modal').addClass('hidden'); resetGame(); }
 
         async function resetGame() {
             game = new Chess();
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
-            if (board) {
-                board.orientation(playerColor === 'w' ? 'white' : 'black');
-                board.start();
-            }
+            if (board) { board.orientation(playerColor === 'w' ? 'white' : 'black'); board.start(); }
             updateLevelInfo();
             updateEvalBar(0);
             updateCapturedPieces();
@@ -668,15 +629,14 @@
         }
 
         $(document).ready(async () => {
+            const skin = pieceSkins.find(s => s.id === activeSkin);
             board = Chessboard('board', {
-                draggable: true, 
-                position: 'start',
+                draggable: true, position: 'start',
                 onDragStart: (s, p) => !game.game_over() && game.turn() === playerColor && p.startsWith(playerColor),
                 onDrop: onDrop,
                 onSnapEnd: () => board.position(game.fen()),
-                pieceTheme: pieceSkins.find(s => s.id === activeSkin).url
+                pieceTheme: skin.url
             });
-            
             $('#reset-btn').on('click', resetGame);
             $('#undo-btn').on('click', () => { game.undo(); game.undo(); board.position(game.fen()); updateStatus(); });
             $('#rebirth-btn').on('click', () => {
@@ -686,14 +646,12 @@
                 localStorage.setItem('sf_unlocked_level_v5', currentLevel);
                 location.reload();
             });
-
             $('#save-btn').on('click', () => {
                 const data = btoa(JSON.stringify({ u: currentLevel, coins, r: rebirths, items: ownedItems, s: activeSkin, b: activeBoard, snd: activeSoundPack }));
                 const el = document.createElement('textarea'); el.value = "SFM-V5-" + data;
                 document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
                 showToast("Save Code Copied!");
             });
-
             $('#load-btn').on('click', () => $('#load-prompt-modal').removeClass('hidden'));
             $('#confirm-load-btn').on('click', () => {
                 try {
@@ -709,7 +667,6 @@
                     location.reload();
                 } catch(e) { showToast("Invalid Code!"); }
             });
-
             const theme = boardThemes.find(t => t.id === activeBoard);
             $('#board').addClass(theme.class);
             updateCoins(0);
