@@ -112,6 +112,13 @@
             <div class="text-[10px] uppercase text-slate-500 font-bold mt-2">Board Themes</div>
             <div id="board-shop" class="grid grid-cols-1 gap-2"></div>
         </div>
+
+        <!-- System Actions -->
+        <div class="mt-auto border-t border-slate-700 pt-4 flex flex-col gap-2">
+            <button id="system-reset-btn" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-[10px] font-bold uppercase tracking-wider text-red-400 transition-all">
+                Clear Storage
+            </button>
+        </div>
     </div>
 
     <!-- Main Content -->
@@ -184,7 +191,8 @@
         const TARGET_DEPTH = 18;
 
         const STORAGE_KEY = 'sf_mastery_v12_data_enc';
-        let state = { 
+        
+        const INITIAL_STATE = { 
             coins: 100, 
             unlockedIndex: 0, 
             board: 'classic',
@@ -193,6 +201,8 @@
             activeGame: null,
             lastScore: 0
         };
+
+        let state = JSON.parse(JSON.stringify(INITIAL_STATE));
 
         const levels = [];
         for (let i = 0; i <= 500; i++) {
@@ -454,31 +464,38 @@
             $('#game-over-modal').removeClass('hidden');
             $('#modal-title').text(won ? 'Level Complete!' : 'Game Over');
             
+            const actionBtn = $('#modal-action-btn');
+            actionBtn.off('click');
+
             if (won) {
                 const reward = levels[state.currentIndex].reward;
                 state.coins += reward;
-                // Auto-unlock next level logic
+                
                 if (state.currentIndex === state.unlockedIndex && state.unlockedIndex < levels.length - 1) {
                     state.unlockedIndex++;
                 }
+                
                 $('#modal-reward').text(`+ 🪙 ${reward}`);
-                $('#modal-action-btn').text('Next Level').off('click').on('click', () => {
-                    if (state.currentIndex < levels.length - 1) state.currentIndex++;
+                actionBtn.text('Next Level').on('click', () => {
+                    if (state.currentIndex < levels.length - 1) {
+                        state.currentIndex++;
+                    }
+                    $('#game-over-modal').addClass('hidden');
                     state.activeGame = null;
                     state.lastScore = 0;
-                    $('#game-over-modal').addClass('hidden');
                     saveToLocal();
                     resetGame();
                     initLevels();
                 });
             } else {
                 $('#modal-reward').text('Try again to advance!');
-                $('#modal-action-btn').text('Retry Level').off('click').on('click', () => {
+                actionBtn.text('Retry Level').on('click', () => {
+                    $('#game-over-modal').addClass('hidden');
                     state.activeGame = null;
                     state.lastScore = 0;
-                    $('#game-over-modal').addClass('hidden');
                     saveToLocal();
                     resetGame();
+                    initLevels();
                 });
             }
             saveToLocal();
@@ -557,6 +574,29 @@
             initLevels($(this).val());
         });
 
+        // System reset logic
+        let resetConfirmTimeout = null;
+        $('#system-reset-btn').click(function() {
+            const btn = $(this);
+            if (btn.hasClass('confirming')) {
+                // Perform actual reset
+                state = JSON.parse(JSON.stringify(INITIAL_STATE));
+                localStorage.removeItem(STORAGE_KEY);
+                saveToLocal(); // Saves fresh state
+                resetGame();
+                initLevels();
+                applyTheme();
+                btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
+                clearTimeout(resetConfirmTimeout);
+            } else {
+                // Step 1: Confirmation
+                btn.addClass('confirming bg-red-600 text-white border-red-400').removeClass('bg-red-500/10 text-red-400').text('Confirm Reset?');
+                resetConfirmTimeout = setTimeout(() => {
+                    btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
+                }, 3000);
+            }
+        });
+
         $(document).ready(async () => {
             loadFromLocal();
             board = Chessboard('board', {
@@ -580,6 +620,7 @@
                 state.lastScore = 0;
                 saveToLocal();
                 resetGame();
+                initLevels();
             });
             
             applyTheme();
