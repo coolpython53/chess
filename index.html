@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockfish Mastery - Pro Analysis</title>
+    <title>Stockfish Mastery - Random Openings</title>
     <!-- Dependencies -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -12,76 +12,31 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .chessboard-63fde img { display: inline; }
-        
         .level-card { transition: all 0.1s; border: 1px solid #334155; }
         .level-card.locked { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
         .level-card.completed { border-color: #10b981; background: rgba(16, 185, 129, 0.05); cursor: default; }
         .level-card.active { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.1); }
         .level-card:not(.locked):not(.completed):hover { border-color: #3b82f6; transform: translateY(-1px); background: #1e293b; }
-        
-        #board-container { 
-            display: flex; 
-            gap: 15px; 
-            width: 100%; 
-            max-width: 500px; 
-            aspect-ratio: 1/1;
-            margin: 0 auto; 
-            align-items: stretch; 
-        }
+        #board-container { display: flex; gap: 15px; width: 100%; max-width: 500px; aspect-ratio: 1/1; margin: 0 auto; align-items: stretch; }
         #board { flex-grow: 1; width: 100% !important; }
-        
-        #eval-bar-container {
-            width: 24px;
-            background: #27272a;
-            border-radius: 4px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column-reverse;
-            position: relative;
-            border: 2px solid #0f172a;
-            height: 100%;
-        }
-        #eval-bar-white { 
-            background: #ffffff;
-            width: 100%; 
-            height: 50%; 
-            transition: height 0.6s cubic-bezier(0.23, 1, 0.32, 1); 
-        }
-        #eval-text {
-            position: absolute; 
-            width: 100%; 
-            text-align: center; 
-            font-size: 10px;
-            font-weight: 900; 
-            z-index: 10; 
-            left: 0; 
-            pointer-events: none;
-            text-shadow: 0 0 2px rgba(0,0,0,0.5);
-        }
+        #eval-bar-container { width: 24px; background: #27272a; border-radius: 4px; overflow: hidden; display: flex; flex-direction: column-reverse; position: relative; border: 2px solid #0f172a; height: 100%; }
+        #eval-bar-white { background: #ffffff; width: 100%; height: 50%; transition: height 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        #eval-text { position: absolute; width: 100%; text-align: center; font-size: 10px; font-weight: 900; z-index: 10; left: 0; pointer-events: none; text-shadow: 0 0 2px rgba(0,0,0,0.5); }
         #eval-text.on-white { bottom: 8px; color: #000; }
         #eval-text.on-black { top: 8px; color: #fff; }
-
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-
         .theme-forest .white-1e1d7 { background-color: #edead0 !important; }
         .theme-forest .black-3c85d { background-color: #6c9463 !important; }
         .theme-ocean .white-1e1d7 { background-color: #dee3e6 !important; }
         .theme-ocean .black-3c85d { background-color: #8ca2ad !important; }
         .theme-dark .white-1e1d7 { background-color: #9e9e9e !important; }
         .theme-dark .black-3c85d { background-color: #424242 !important; }
-
         .move-item { cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s; }
         .move-item:hover { background: rgba(255,255,255,0.1); }
         .move-item.active { background: #3b82f6; color: white; font-weight: bold; }
-
-        .thinking-loader {
-            height: 2px;
-            width: 0%;
-            background: #3b82f6;
-            transition: width 0.3s ease;
-        }
+        .thinking-loader { height: 2px; width: 0%; background: #3b82f6; transition: width 0.3s ease; }
     </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col lg:flex-row p-4 gap-4 font-sans overflow-x-hidden">
@@ -114,7 +69,6 @@
             <div id="board-shop" class="grid grid-cols-1 gap-2"></div>
         </div>
 
-        <!-- System Actions -->
         <div class="mt-auto border-t border-slate-700 pt-4 flex flex-col gap-2">
             <button id="system-reset-btn" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-[10px] font-bold uppercase tracking-wider text-red-400 transition-all">
                 Clear Storage
@@ -125,11 +79,11 @@
     <!-- Main Content -->
     <div class="flex-1 flex flex-col items-center justify-start gap-4">
         <div class="bg-slate-800 p-4 lg:p-6 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 relative">
-            
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h2 id="current-level-title" class="text-md font-bold text-blue-400">Level 0.0</h2>
                     <p id="player-side-info" class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Playing as White</p>
+                    <p id="opening-info" class="text-[9px] text-emerald-500 mt-1 italic"></p>
                 </div>
                 <div id="game-status" class="text-[10px] px-3 py-1 bg-slate-700 rounded-full font-bold uppercase">Ready</div>
             </div>
@@ -164,7 +118,7 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 justify-center">
-                <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
+                <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition uppercase tracking-tighter">New Game (Random Opening)</button>
             </div>
         </div>
     </div>
@@ -196,18 +150,23 @@
         let multiPVBuffer = [];
         const TARGET_DEPTH = 18;
 
-        const STORAGE_KEY = 'sf_mastery_v12_data_enc';
-        
-        const INITIAL_STATE = { 
-            coins: 100, 
-            unlockedIndex: 0, 
-            board: 'classic',
-            ownedBoards: ['classic'],
-            currentIndex: 0,
-            activeGame: null,
-            lastScore: 0
-        };
+        // --- RANDOM OPENINGS BOOK ---
+        const OPENINGS_BOOK = [
+            { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
+            { name: "Sicilian Defense", moves: ["e4", "c5"] },
+            { name: "French Defense", moves: ["e4", "e6"] },
+            { name: "Caro-Kann Defense", moves: ["e4", "c6"] },
+            { name: "Italian Game", moves: ["e4", "e5", "Nf3", "Nc6", "Bc4"] },
+            { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] },
+            { name: "King's Indian", moves: ["d4", "Nf6", "c4", "g6"] },
+            { name: "Nimzo-Indian", moves: ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4"] },
+            { name: "Reti Opening", moves: ["Nf3", "d5"] },
+            { name: "English Opening", moves: ["c4"] }
+        ];
+        let activeOpeningSequence = null;
 
+        const STORAGE_KEY = 'sf_mastery_v12_data_enc';
+        const INITIAL_STATE = { coins: 100, unlockedIndex: 0, board: 'classic', ownedBoards: ['classic'], currentIndex: 0, activeGame: null, lastScore: 0 };
         let state = JSON.parse(JSON.stringify(INITIAL_STATE));
 
         const levels = [];
@@ -225,17 +184,8 @@
             { id: 'dark', name: 'Dark Mode', class: 'theme-dark', price: 500 }
         ];
 
-        function encrypt(data) {
-            return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        }
-
-        function decrypt(str) {
-            try {
-                return JSON.parse(decodeURIComponent(escape(atob(str))));
-            } catch(e) {
-                return null;
-            }
-        }
+        function encrypt(data) { return btoa(unescape(encodeURIComponent(JSON.stringify(data)))); }
+        function decrypt(str) { try { return JSON.parse(decodeURIComponent(escape(atob(str)))); } catch(e) { return null; } }
 
         function loadFromLocal() { 
             const saved = localStorage.getItem(STORAGE_KEY); 
@@ -258,21 +208,16 @@
         }
 
         async function initEngine() {
-            if (stockfish) {
-                stockfish.terminate();
-                stockfish = null;
-            }
+            if (stockfish) { stockfish.terminate(); stockfish = null; }
             const blob = new Blob([`importScripts("${STOCKFISH_URL}");`], { type: 'application/javascript' });
             stockfish = new Worker(URL.createObjectURL(blob));
             
             stockfish.onmessage = (e) => {
                 const line = e.data;
-
                 if (line.includes('depth') && line.includes('multipv')) {
                     const mpvMatch = line.match(/multipv (\d+)/);
                     const pvMatch = line.match(/ pv (.+)/);
                     const cpMatch = line.match(/score cp (-?\d+)/);
-                    
                     if (mpvMatch && pvMatch) {
                         const rank = parseInt(mpvMatch[1]);
                         const move = pvMatch[1].split(' ')[0];
@@ -282,26 +227,21 @@
                 }
 
                 if (line.includes('info depth')) {
-                    const depthMatch = line.match(/depth (\d+)/);
                     const cpMatch = line.match(/score cp (-?\d+)/);
                     const mateMatch = line.match(/score mate (-?\d+)/);
-
                     if (cpMatch) {
                         let score = parseInt(cpMatch[1]);
                         if (liveGame.turn() === 'b') score = -score;
                         state.lastScore = score;
                         updateEvalBar(score);
                     } else if (mateMatch) {
-                        const mateIn = parseInt(mateMatch[1]);
-                        const score = mateIn > 0 ? 10000 : -10000;
-                        updateEvalBar(score);
+                        updateEvalBar(parseInt(mateMatch[1]) > 0 ? 10000 : -10000);
                     }
 
-                    if (isCalculatingHint && depthMatch) {
-                        const d = parseInt(depthMatch[1]);
+                    if (isCalculatingHint) {
+                        const d = line.match(/depth (\d+)/)?.[1] || 0;
                         $('#depth-text').text(`D: ${d}/${TARGET_DEPTH}`);
                         $('#thinking-progress').css('width', `${(d/TARGET_DEPTH) * 100}%`);
-                        
                         const pvMatch = line.match(/ pv (.+)/);
                         if (pvMatch) {
                             const firstMove = pvMatch[1].split(' ')[0];
@@ -318,20 +258,7 @@
                         const moveObj = new Chess(liveGame.fen()).move(moveStr, { sloppy: true });
                         finishHint(moveObj ? moveObj.san : moveStr);
                     } else if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
-                        let selectedMove = moveStr;
-                        const levelIdx = state.currentIndex;
-                        
-                        if (levelIdx < 400 && multiPVBuffer.length > 1) {
-                            const maxRank = Math.max(1, Math.min(5, Math.floor(6 - (levelIdx / 80))));
-                            const chosenRank = Math.floor(Math.random() * maxRank);
-                            const likelyWorseRank = levelIdx < 50 ? (multiPVBuffer.length - 1) : chosenRank;
-                            if (multiPVBuffer[likelyWorseRank]) {
-                                selectedMove = multiPVBuffer[likelyWorseRank].move;
-                            }
-                        }
-
-                        const move = liveGame.move(selectedMove, { sloppy: true });
-                        if (move) { recordMove(move); updateStatus(); }
+                        processEngineMove(moveStr);
                     }
                 }
             };
@@ -342,14 +269,46 @@
             stockfish.postMessage('isready');
         }
 
+        function processEngineMove(stockfishMove) {
+            let moveStr = stockfishMove;
+
+            // VARIETY / RANDOMNESS SYSTEM
+            if (activeOpeningSequence && activeOpeningSequence.length > 0) {
+                // If we have book moves left, try to play one
+                const bookMove = activeOpeningSequence.shift();
+                const testGame = new Chess(liveGame.fen());
+                const m = testGame.move(bookMove);
+                if (m) {
+                    moveStr = m.from + m.to + (m.promotion || '');
+                } else {
+                    activeOpeningSequence = null; // Sequence broken
+                }
+            } else if (multiPVBuffer.length > 1) {
+                // Use MultiPV to pick varied but sound moves
+                const levelIdx = state.currentIndex;
+                const randomFactor = Math.random();
+                const threshold = Math.min(0.9, (levelIdx / 300)); 
+                
+                if (randomFactor > threshold) {
+                    const bestScore = multiPVBuffer[0].score;
+                    const candidates = multiPVBuffer.filter(m => Math.abs(m.score - bestScore) < 120);
+                    moveStr = candidates[Math.floor(Math.random() * candidates.length)].move;
+                } else {
+                    moveStr = multiPVBuffer[0].move;
+                }
+            }
+
+            const move = liveGame.move(moveStr, { sloppy: true });
+            if (move) { recordMove(move); updateStatus(); }
+        }
+
         function updateEvalBar(score) {
             let val = Math.max(-1000, Math.min(1000, score));
             const pct = 50 + (val / 20);
             const displayPct = Math.max(5, Math.min(95, pct));
             $('#eval-bar-white').css('height', `${displayPct}%`);
             let text = (score / 100).toFixed(1);
-            if (score > 1000) text = "M";
-            if (score < -1000) text = "-M";
+            if (Math.abs(score) > 9000) text = "M";
             if (score > 0) text = "+" + text;
             $('#eval-text').text(text).toggleClass('on-white', displayPct > 50).toggleClass('on-black', displayPct <= 50);
         }
@@ -358,13 +317,9 @@
             if (tab === 'levels') {
                 $('#content-levels').removeClass('hidden').addClass('flex');
                 $('#content-shop').addClass('hidden');
-                $('#tab-levels').addClass('border-blue-500 text-blue-400').removeClass('border-transparent text-slate-400');
-                $('#tab-shop').addClass('border-transparent text-slate-400').removeClass('border-blue-500 text-blue-400');
             } else {
                 $('#content-levels').addClass('hidden');
                 $('#content-shop').removeClass('hidden').addClass('flex');
-                $('#tab-shop').addClass('border-blue-500 text-blue-400').removeClass('border-transparent text-slate-400');
-                $('#tab-levels').addClass('border-transparent text-slate-400').removeClass('border-blue-500 text-blue-400');
                 renderShop();
             }
         }
@@ -376,9 +331,7 @@
                 const isLocked = i > state.unlockedIndex;
                 const isCompleted = i < state.unlockedIndex;
                 const isActive = i === state.currentIndex;
-                
                 const cardClass = isLocked ? 'locked' : (isCompleted ? 'completed' : (isActive ? 'active' : ''));
-                
                 const card = $(`
                     <div class="level-card p-2 rounded flex items-center justify-between cursor-pointer ${cardClass}">
                         <div class="flex flex-col">
@@ -388,21 +341,12 @@
                         <span class="text-[10px]">${isLocked ? '🔒' : (isCompleted ? '✅' : (isActive ? '🎯' : '🔓'))}</span>
                     </div>
                 `);
-                
-                // Only allow clicking the current active level
                 if (!isLocked && !isCompleted) card.click(() => {
-                    state.currentIndex = i;
-                    state.activeGame = null;
-                    state.lastScore = 0;
-                    saveToLocal();
-                    resetGame();
-                    initLevels(filter);
+                    state.currentIndex = i; state.activeGame = null; state.lastScore = 0;
+                    saveToLocal(); resetGame(); initLevels(filter);
                 });
-                
                 list.append(card);
             });
-            const activeCard = list.find('.active');
-            if(activeCard.length) activeCard[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
 
         function renderShop() {
@@ -492,54 +436,32 @@
             const won = (liveGame.in_checkmate() && liveGame.turn() !== playerColor);
             $('#game-over-modal').removeClass('hidden');
             $('#modal-title').text(won ? 'Level Complete!' : 'Game Over');
-            
-            const actionBtn = $('#modal-action-btn');
-            actionBtn.off('click');
-
+            const actionBtn = $('#modal-action-btn').off('click');
             if (won) {
                 const reward = levels[state.currentIndex].reward;
                 state.coins += reward;
-                
-                // If we won the latest level, increment unlocked
-                if (state.currentIndex === state.unlockedIndex) {
-                    state.unlockedIndex++;
-                    state.currentIndex++; // Move to the new level automatically
-                }
-                
+                if (state.currentIndex === state.unlockedIndex) { state.unlockedIndex++; state.currentIndex++; }
                 $('#modal-reward').text(`+ 🪙 ${reward}`);
-                actionBtn.text('Continue to Level ' + levels[state.currentIndex].name).on('click', () => {
-                    $('#game-over-modal').addClass('hidden');
-                    state.activeGame = null;
-                    state.lastScore = 0;
-                    saveToLocal();
-                    resetGame();
-                    initLevels();
-                });
+                actionBtn.text('Continue').on('click', () => { $('#game-over-modal').addClass('hidden'); state.activeGame = null; resetGame(); });
             } else {
-                $('#modal-reward').text('Try again to advance!');
-                actionBtn.text('Retry Level').on('click', () => {
-                    $('#game-over-modal').addClass('hidden');
-                    state.activeGame = null;
-                    state.lastScore = 0;
-                    saveToLocal();
-                    resetGame();
-                    initLevels();
-                });
+                $('#modal-reward').text('Try again!');
+                actionBtn.text('Retry').on('click', () => { $('#game-over-modal').addClass('hidden'); state.activeGame = null; resetGame(); });
             }
-            saveToLocal();
-            initLevels();
+            saveToLocal(); initLevels();
         }
 
         function onDrop(source, target) {
             const move = liveGame.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
+            // Sequence was manually broken if user moves differently than opening
+            activeOpeningSequence = null;
             recordMove(move);
             updateStatus();
             if (!liveGame.game_over()) {
                 setTimeout(() => {
                     multiPVBuffer = [];
                     stockfish.postMessage(`position fen ${liveGame.fen()}`);
-                    stockfish.postMessage(`go movetime 1000`);
+                    stockfish.postMessage(`go movetime 1200`);
                 }, 250);
             }
         }
@@ -557,11 +479,8 @@
         function jumpToMove(idx) {
             if (idx < 0 || idx >= moveHistory.length) return;
             historyIndex = idx;
-            const targetFen = moveHistory[idx].fen;
-            board.position(targetFen);
+            board.position(moveHistory[idx].fen);
             renderHistory();
-            stockfish.postMessage(`position fen ${targetFen}`);
-            stockfish.postMessage(`go depth 12`);
         }
 
         async function resetGame() {
@@ -570,11 +489,17 @@
                 moveHistory = state.activeGame.history || [];
                 playerColor = state.activeGame.playerColor || 'w';
                 historyIndex = moveHistory.length - 1;
+                activeOpeningSequence = null;
             } else {
                 liveGame = new Chess(); 
                 moveHistory = []; 
                 historyIndex = -1;
                 playerColor = Math.random() < 0.5 ? 'w' : 'b';
+                
+                // Select Random Opening
+                const opening = OPENINGS_BOOK[Math.floor(Math.random() * OPENINGS_BOOK.length)];
+                activeOpeningSequence = [...opening.moves];
+                $('#opening-info').text(`Game Theme: ${opening.name}`);
             }
             
             if (board) {
@@ -591,52 +516,33 @@
             if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
                 multiPVBuffer = [];
                 stockfish.postMessage(`position fen ${liveGame.fen()}`);
-                stockfish.postMessage(`go movetime 1000`);
-            } else {
-                stockfish.postMessage(`position fen ${liveGame.fen()}`);
-                stockfish.postMessage(`go depth 12`);
+                stockfish.postMessage(`go movetime 1200`);
             }
         }
 
-        $('#level-search').on('input', function() {
-            initLevels($(this).val());
-        });
+        $('#level-search').on('input', function() { initLevels($(this).val()); });
 
-        // System reset logic
-        let resetConfirmTimeout = null;
         $('#system-reset-btn').click(function() {
             const btn = $(this);
             if (btn.hasClass('confirming')) {
                 state = JSON.parse(JSON.stringify(INITIAL_STATE));
                 localStorage.removeItem(STORAGE_KEY);
-                saveToLocal();
-                resetGame();
-                initLevels();
-                applyTheme();
-                btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
-                clearTimeout(resetConfirmTimeout);
+                saveToLocal(); resetGame(); initLevels(); applyTheme();
+                btn.removeClass('confirming bg-red-600 text-white').text('Clear Storage');
             } else {
-                btn.addClass('confirming bg-red-600 text-white border-red-400').removeClass('bg-red-500/10 text-red-400').text('Confirm Reset?');
-                resetConfirmTimeout = setTimeout(() => {
-                    btn.removeClass('confirming bg-red-600 text-white').addClass('bg-red-500/10 text-red-400').text('Clear Storage');
-                }, 3000);
+                btn.addClass('confirming bg-red-600 text-white border-red-400').text('Confirm Reset?');
+                setTimeout(() => btn.removeClass('confirming bg-red-600 text-white').text('Clear Storage'), 3000);
             }
         });
 
         $(document).ready(async () => {
             loadFromLocal();
-            
-            // Safety check: ensure current index is always the latest unlocked for a new play
-            if (!state.activeGame) {
-                state.currentIndex = state.unlockedIndex;
-            }
-
+            if (!state.activeGame) state.currentIndex = state.unlockedIndex;
             board = Chessboard('board', {
                 draggable: true,
                 position: state.activeGame ? state.activeGame.fen : 'start',
                 onDragStart: (s, p) => {
-                    if (liveGame.game_over()) return false;
-                    if (liveGame.turn() !== playerColor) return false;
+                    if (liveGame.game_over() || liveGame.turn() !== playerColor) return false;
                     if (historyIndex !== moveHistory.length - 1 && moveHistory.length > 0) return false;
                     return true;
                 },
@@ -644,21 +550,11 @@
                 onSnapEnd: () => board.position(liveGame.fen()),
                 pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
             });
-
             $(window).resize(board.resize);
             $('#get-hint-btn').click(requestManualHint);
             $('#stop-engine-btn').click(stopEngine);
-            $('#reset-btn').click(() => {
-                state.activeGame = null;
-                state.lastScore = 0;
-                saveToLocal();
-                resetGame();
-                initLevels();
-            });
-            
-            applyTheme();
-            initLevels();
-            await resetGame();
+            $('#reset-btn').click(() => { state.activeGame = null; resetGame(); });
+            applyTheme(); initLevels(); await resetGame();
         });
     </script>
 </body>
