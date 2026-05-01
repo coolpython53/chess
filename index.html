@@ -3,29 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockfish Mastery - Unlock the Grandmaster</title>
+    <title>Stockfish Mastery - Level 50 Challenge</title>
     <!-- Dependencies -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .level-card.locked { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
-        .level-card.active { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.2); }
+        .level-card.locked { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
+        .level-card.active { border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.3); }
         #board-container { display: flex; gap: 15px; width: 100%; max-width: 580px; margin: 0 auto; align-items: stretch; }
         #board { flex-grow: 1; }
         
         #eval-bar-container {
-            width: 36px;
+            width: 32px;
             background: #000000;
-            border-radius: 6px;
+            border-radius: 4px;
             overflow: hidden;
             display: flex;
             flex-direction: column-reverse;
             position: relative;
             border: 2px solid #0f172a;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
         }
         #eval-bar-white { 
             background: #ffffff;
@@ -37,18 +35,18 @@
             position: absolute; 
             width: 100%; 
             text-align: center; 
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 900; 
             z-index: 10; 
             left: 0; 
             pointer-events: none;
         }
-        #eval-text.on-white { bottom: 8px; color: #000; }
-        #eval-text.on-black { top: 8px; color: #fff; }
+        #eval-text.on-white { bottom: 6px; color: #000; }
+        #eval-text.on-black { top: 6px; color: #fff; }
 
         .chessboard-63fde { border: 4px solid #334155 !important; border-radius: 4px; overflow: hidden; }
         
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
 
         .theme-forest .white-1e1d7 { background-color: #edead0 !important; }
@@ -62,30 +60,40 @@
         .move-item:hover { background: rgba(255,255,255,0.1); }
         .move-item.active { background: #3b82f6; color: white; font-weight: bold; }
 
-        #copy-toast {
+        #toast {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: #10b981;
+            background: #3b82f6;
             color: white;
-            padding: 8px 16px;
-            border-radius: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 13px;
             opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
+            transition: opacity 0.3s, transform 0.3s;
             z-index: 1000;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+
+        .promo-choice { cursor: pointer; transition: transform 0.2s; }
+        .promo-choice:hover { transform: scale(1.1); background: rgba(255,255,255,0.1); }
+
+        .hint-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
         }
     </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col lg:flex-row p-4 gap-4 font-sans overflow-x-hidden">
 
-    <div id="copy-toast">Moves copied to clipboard!</div>
+    <div id="toast">Message</div>
 
-    <!-- Left Sidebar: Levels & Shop -->
-    <div class="w-full lg:w-72 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh]">
+    <!-- Left Sidebar -->
+    <div class="w-full lg:w-80 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh]">
         <div class="flex flex-col gap-2 border-b border-slate-700 pb-4">
             <div class="flex justify-between items-center mb-1">
                 <h1 class="text-lg font-bold">Stockfish Mastery</h1>
@@ -93,23 +101,25 @@
                     🪙 <span id="coin-display">0</span>
                 </div>
             </div>
-            <div class="flex gap-1">
-                <button id="save-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Export Data</button>
-                <button id="load-btn" class="flex-1 py-1 text-[9px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold">Import Data</button>
+            <div class="flex gap-2">
+                <button id="export-btn" class="flex-1 py-1.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold tracking-wider">Export</button>
+                <button id="import-btn" class="flex-1 py-1.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded transition uppercase font-bold tracking-wider">Import</button>
             </div>
         </div>
 
         <div class="flex border-b border-slate-700">
-            <button onclick="switchTab('levels')" id="tab-levels" class="flex-1 py-2 text-xs font-bold border-b-2 border-blue-500 text-blue-400">Levels</button>
+            <button onclick="switchTab('levels')" id="tab-levels" class="flex-1 py-2 text-xs font-bold border-b-2 border-blue-500 text-blue-400">Levels (0-50)</button>
             <button onclick="switchTab('shop')" id="tab-shop" class="flex-1 py-2 text-xs font-bold border-b-2 border-transparent text-slate-400">Shop</button>
         </div>
 
         <div id="content-levels" class="flex-col gap-2 overflow-y-auto flex-grow pr-1 custom-scroll">
-            <div id="level-list" class="flex flex-col gap-2"></div>
+            <div id="level-list" class="flex flex-col gap-1.5"></div>
         </div>
 
         <div id="content-shop" class="hidden flex-col gap-4 overflow-y-auto flex-grow pr-1 custom-scroll">
-            <div id="board-shop" class="grid grid-cols-2 gap-2 mt-2"></div>
+            <div class="text-[10px] uppercase text-slate-500 font-bold">Board Themes</div>
+            <div id="board-shop" class="grid grid-cols-2 gap-2"></div>
+            <div class="text-[10px] uppercase text-slate-500 font-bold mt-2">Piece Skins</div>
             <div id="piece-shop" class="grid grid-cols-2 gap-2"></div>
         </div>
     </div>
@@ -122,7 +132,7 @@
             <div id="resume-overlay" class="hidden absolute top-20 left-0 right-0 z-20 flex justify-center pointer-events-none">
                 <button onclick="resumeToLive()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold text-xs shadow-2xl pointer-events-auto flex items-center gap-2 transform transition hover:scale-105 active:scale-95">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                    RESUME LIVE MATCH
+                    BACK TO LIVE
                 </button>
             </div>
 
@@ -142,57 +152,97 @@
                 <div id="board"></div>
             </div>
 
-            <div class="mt-4 flex gap-2 justify-center">
-                <button id="reset-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
-                <button id="copy-moves-btn" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition shadow-lg">COPY MOVES</button>
-                <button id="flip-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">FLIP</button>
+            <!-- Hint Box -->
+            <div id="hint-box" class="hidden mt-4 w-full bg-slate-900 border border-amber-500/50 p-3 rounded-lg text-center">
+                <p class="text-[10px] uppercase text-amber-500 font-bold mb-1">Stockfish 17 Analysis</p>
+                <p id="hint-text" class="text-xl font-mono font-black text-white tracking-wider">---</p>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2 justify-center">
+                <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">NEW GAME</button>
+                <button id="calculate-hint-btn" class="hidden flex-1 min-w-[120px] py-3 bg-amber-600 hover:bg-amber-500 rounded-lg text-xs font-bold transition shadow-lg hint-pulse">CALCULATE BEST MOVE</button>
+                <button id="copy-moves-btn" class="flex-1 min-w-[120px] py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold transition shadow-lg">COPY PGN</button>
+                <button id="flip-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition">FLIP BOARD</button>
             </div>
         </div>
     </div>
 
-    <!-- Right Sidebar: History -->
-    <div class="w-full lg:w-64 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[90vh] border border-slate-700">
+    <!-- Right Sidebar -->
+    <div class="w-full lg:w-72 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-2xl h-[92vh] border border-slate-700">
         <div class="flex flex-col">
-            <h3 class="text-xs font-bold uppercase text-slate-400 mb-1">Move History</h3>
-            <p id="history-label" class="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">Live Match</p>
+            <h3 class="text-xs font-bold uppercase text-slate-400 mb-1">Analysis & History</h3>
+            <p id="history-label" class="text-[9px] text-blue-500 font-bold uppercase tracking-tighter">Live Session</p>
         </div>
         
-        <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700">
-            <!-- Moves injected here -->
-        </div>
+        <div id="move-history-list" class="flex-grow overflow-y-auto custom-scroll text-sm font-mono grid grid-cols-2 gap-x-2 gap-y-1 content-start bg-slate-900/50 p-2 rounded-lg border border-slate-700"></div>
 
-        <div class="pt-2">
-            <p class="text-[9px] text-slate-500 text-center italic leading-tight">Reviewing history won't affect the bot's turn. Use arrows to browse.</p>
+        <div class="pt-2 border-t border-slate-700">
+            <p class="text-[10px] text-slate-500 text-center italic leading-tight">Use arrow keys to browse history.</p>
         </div>
     </div>
 
-    <!-- Game Over Modal -->
+    <!-- Modals -->
+    <div id="promo-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[60]">
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-600 shadow-2xl text-center">
+            <h3 class="text-lg font-bold mb-4">Choose Promotion</h3>
+            <div class="flex gap-4">
+                <div onclick="selectPromotion('q')" class="promo-choice p-2 rounded bg-slate-700"><img id="promo-q" src="" class="w-12 h-12"></div>
+                <div onclick="selectPromotion('r')" class="promo-choice p-2 rounded bg-slate-700"><img id="promo-r" src="" class="w-12 h-12"></div>
+                <div onclick="selectPromotion('b')" class="promo-choice p-2 rounded bg-slate-700"><img id="promo-b" src="" class="w-12 h-12"></div>
+                <div onclick="selectPromotion('n')" class="promo-choice p-2 rounded bg-slate-700"><img id="promo-n" src="" class="w-12 h-12"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-slate-800 p-8 rounded-2xl text-center max-w-sm border border-slate-600 shadow-2xl">
             <h2 id="modal-title" class="text-3xl font-bold mb-2">You Won!</h2>
             <div id="modal-reward" class="text-amber-400 font-bold text-xl mb-4"></div>
             <p id="modal-msg" class="text-slate-300 mb-6"></p>
-            <button onclick="$('#game-over-modal').addClass('hidden'); resetGame();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">Continue</button>
+            <button onclick="$('#game-over-modal').addClass('hidden'); resetGame();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition">New Match</button>
         </div>
     </div>
 
     <script>
+        // Official Stockfish.js URL
         const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
         
         let liveGame = new Chess();
         let board = null;
         let stockfish = null;
-        let moveHistory = []; // Stores objects: { fen, san }
-        let historyIndex = -1; // Current viewed position index
+        let moveHistory = []; 
+        let historyIndex = -1; 
         let playerColor = 'w';
+        let pendingMove = null;
 
-        // Persistence
-        let coins = parseFloat(localStorage.getItem('sf_coins_v6')) || 0;
-        let currentLevel = parseFloat(localStorage.getItem('sf_unlocked_v6')) || 0;
-        let activeLevel = currentLevel;
-        let rebirths = parseInt(localStorage.getItem('sf_rebirths_v6')) || 1;
-        let activeSkin = localStorage.getItem('sf_skin_v6') || 'wikipedia';
-        let activeBoard = localStorage.getItem('sf_board_v6') || 'classic';
+        // Easter Egg Logic
+        let newGameClickCount = 0;
+        let hintUnlocked = false; 
+        let isCalculatingHint = false;
+
+        const STORAGE_KEY = 'sf_mastery_stockfish17_v4';
+
+        let state = {
+            coins: 0,
+            unlocked: 0,
+            skin: 'wikipedia',
+            board: 'classic'
+        };
+
+        function loadFromLocal() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { 
+                    const parsed = JSON.parse(saved);
+                    if (typeof parsed.coins === 'number') state = parsed;
+                } catch(e) {}
+            }
+        }
+
+        function saveToLocal() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            $('#coin-display').text(Math.floor(state.coins).toLocaleString());
+        }
 
         const pieceSkins = [
             { id: 'wikipedia', name: 'Classic', url: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' },
@@ -208,14 +258,19 @@
         ];
 
         const levels = [];
-        for (let i = 0; i <= 20.01; i += 0.5) {
-            levels.push({ id: i, skill: Math.floor(i), elo: Math.round(500 + (i * 125)) });
+        for (let i = 0; i <= 50.01; i += 0.5) {
+            levels.push({ 
+                id: i, 
+                skill: Math.min(20, Math.floor(i / 2.5)), 
+                elo: Math.round(100 + (i * 145)) 
+            });
         }
 
-        function updateCoins(amt) {
-            coins = parseFloat((coins + amt).toFixed(2));
-            localStorage.setItem('sf_coins_v6', coins);
-            $('#coin-display').text(Math.floor(coins).toLocaleString());
+        let activeLevel = state.unlocked || 0;
+
+        function showToast(msg) {
+            const t = $('#toast').text(msg).css({ opacity: 1, transform: 'translateX(-50%) translateY(-10px)' });
+            setTimeout(() => t.css({ opacity: 0, transform: 'translateX(-50%) translateY(0)' }), 2500);
         }
 
         function switchTab(tab) {
@@ -235,44 +290,35 @@
             const bShop = $('#board-shop').empty();
             const pShop = $('#piece-shop').empty();
             boardThemes.forEach(t => {
-                const active = activeBoard === t.id;
-                bShop.append(`<button onclick="equip('board', '${t.id}')" class="p-2 text-[10px] rounded border ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700'}">${t.name}</button>`);
+                const active = state.board === t.id;
+                bShop.append(`<button onclick="equip('board', '${t.id}')" class="p-2 text-[10px] rounded border transition ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 hover:bg-slate-700'}">${t.name}</button>`);
             });
             pieceSkins.forEach(s => {
-                const active = activeSkin === s.id;
-                pShop.append(`<button onclick="equip('piece', '${s.id}')" class="p-2 text-[10px] rounded border ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700'}">${s.name}</button>`);
+                const active = state.skin === s.id;
+                pShop.append(`<button onclick="equip('piece', '${s.id}')" class="p-2 text-[10px] rounded border transition ${active ? 'border-blue-500 bg-blue-900/20' : 'border-slate-700 hover:bg-slate-700'}">${s.name}</button>`);
             });
         }
 
         function equip(type, id) {
-            if (type === 'board') activeBoard = id;
-            else activeSkin = id;
-            localStorage.setItem('sf_board_v6', activeBoard);
-            localStorage.setItem('sf_skin_v6', activeSkin);
+            if (type === 'board') state.board = id;
+            else state.skin = id;
+            saveToLocal();
             applyVisuals();
             renderShop();
         }
 
         function applyVisuals() {
-            const theme = boardThemes.find(t => t.id === activeBoard);
-            const skin = pieceSkins.find(s => s.id === activeSkin);
+            const theme = boardThemes.find(t => t.id === state.board) || boardThemes[0];
+            const skin = pieceSkins.find(s => s.id === state.skin) || pieceSkins[0];
             $('#board').removeClass('theme-forest theme-ocean theme-dark').addClass(theme.class);
             
             const config = {
                 draggable: true,
                 position: liveGame.fen(),
-                orientation: playerColor === 'w' ? 'white' : 'black',
-                onDragStart: (s, p) => {
-                    // Only allow dragging if it's the player's turn AND we are viewing the latest move
-                    const isLatest = historyIndex === moveHistory.length - 1;
-                    return !liveGame.game_over() && liveGame.turn() === playerColor && isLatest;
-                },
+                orientation: board ? board.orientation() : (playerColor === 'w' ? 'white' : 'black'),
+                onDragStart: (s, p) => (historyIndex === moveHistory.length - 1 && !liveGame.game_over() && liveGame.turn() === playerColor),
                 onDrop: onDrop,
-                onSnapEnd: () => {
-                    // Always snap back to whatever FEN was active for that index
-                    const fen = historyIndex === -1 ? 'start' : moveHistory[historyIndex].fen;
-                    board.position(fen);
-                },
+                onSnapEnd: () => board.position(historyIndex === -1 ? 'start' : moveHistory[historyIndex].fen),
                 pieceTheme: skin.url
             };
             if (board) board.destroy();
@@ -282,13 +328,13 @@
         function initLevels() {
             const list = $('#level-list').empty();
             levels.forEach(lvl => {
-                const isLocked = lvl.id > currentLevel;
+                const isLocked = lvl.id > state.unlocked;
                 const isActive = Math.abs(lvl.id - activeLevel) < 0.01;
                 list.append(`
-                    <div onclick="selectLevel(${lvl.id})" class="level-card p-2 rounded border transition ${isLocked ? 'locked' : 'cursor-pointer'} ${isActive ? 'active' : 'bg-slate-700/50 border-transparent'}">
-                        <div class="flex justify-between text-[10px] font-bold">
-                            <span>Level ${lvl.id.toFixed(1)}</span>
-                            <span>ELO ${lvl.elo}</span>
+                    <div onclick="selectLevel(${lvl.id})" class="level-card px-3 py-1.5 rounded border transition ${isLocked ? 'locked' : 'cursor-pointer'} ${isActive ? 'active' : 'bg-slate-900/40 border-slate-700/50'}">
+                        <div class="flex justify-between items-center text-[11px] font-bold">
+                            <span class="${isActive ? 'text-blue-300' : 'text-slate-400'}">Lvl ${lvl.id.toFixed(1)}</span>
+                            <span class="opacity-60 text-[9px]">ELO ${lvl.elo}</span>
                         </div>
                     </div>
                 `);
@@ -296,7 +342,10 @@
         }
 
         function selectLevel(id) {
-            if (id > currentLevel) return;
+            if (id > state.unlocked) {
+                showToast(`Level ${id} is locked!`);
+                return;
+            }
             activeLevel = id;
             initLevels();
             resetGame();
@@ -304,30 +353,61 @@
 
         async function initEngine() {
             if (stockfish) stockfish.terminate();
+            
             const blob = new Blob([`importScripts("${STOCKFISH_URL}");`], { type: 'application/javascript' });
             stockfish = new Worker(URL.createObjectURL(blob));
+            
             stockfish.onmessage = (e) => {
                 const line = e.data;
+                
+                // Real-time Eval parsing
                 if (line.includes('score cp')) {
                     const match = line.match(/score cp (-?\d+)/);
                     if (match) updateEvalBar(parseInt(match[1]) * (liveGame.turn() === 'b' ? -1 : 1));
-                } else if (line.includes('bestmove')) {
-                    const match = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
-                    if (match && liveGame.turn() !== playerColor && !liveGame.game_over()) {
-                        const move = liveGame.move(match[1], { sloppy: true });
+                } 
+                
+                // Handling bestmove (works for both bot moves and calculated hints)
+                if (line.startsWith('bestmove')) {
+                    const moveMatch = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
+                    if (!moveMatch) return;
+                    
+                    const moveStr = moveMatch[1];
+
+                    // If we were explicitly calculating a hint
+                    if (isCalculatingHint) {
+                        const tempChess = new Chess(liveGame.fen());
+                        const moveObj = tempChess.move(moveStr, { sloppy: true });
+                        
+                        $('#hint-text').text(moveObj ? moveObj.san : moveStr.toUpperCase());
+                        $('#hint-box').removeClass('hidden').addClass('animate-bounce');
+                        setTimeout(() => $('#hint-box').removeClass('animate-bounce'), 1000);
+                        
+                        isCalculatingHint = false;
+                        $('#calculate-hint-btn').text('CALCULATE BEST MOVE').removeClass('opacity-50');
+                        return;
+                    }
+
+                    // Otherwise, if it's the opponent's turn, execute the move
+                    if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
+                        const move = liveGame.move(moveStr, { sloppy: true });
                         if (move) {
                             recordMove(move);
-                            // If user is currently looking at the live game, update the board
-                            if (historyIndex === moveHistory.length - 1) {
-                                board.position(liveGame.fen());
-                            }
+                            if (historyIndex === moveHistory.length - 1) board.position(liveGame.fen());
                             updateStatus();
                         }
                     }
                 }
             };
+            
             stockfish.postMessage('uci');
-            stockfish.postMessage(`setoption name Skill Level value ${Math.floor(activeLevel)}`);
+            stockfish.postMessage('isready');
+            stockfish.postMessage('setoption name Threads value 4');
+            stockfish.postMessage('setoption name Hash value 128');
+            
+            const currentLvl = levels.find(l => Math.abs(l.id - activeLevel) < 0.01) || levels[0];
+            stockfish.postMessage(`setoption name Skill Level value ${currentLvl.skill}`);
+            stockfish.postMessage(`setoption name UCI_LimitStrength value true`);
+            stockfish.postMessage(`setoption name UCI_Elo value ${currentLvl.elo}`);
         }
 
         function updateEvalBar(score) {
@@ -339,74 +419,87 @@
 
         function recordMove(move) {
             if (!move) return;
-            // Clear future history if we are branching from a past move (though in "PLAY ONLY" this shouldn't happen unless we add an Undo feature)
-            if (historyIndex < moveHistory.length - 1) {
-                moveHistory = moveHistory.slice(0, historyIndex + 1);
-            }
             moveHistory.push({ fen: liveGame.fen(), san: move.san });
             historyIndex = moveHistory.length - 1;
             renderHistory();
+            $('#hint-box').addClass('hidden'); 
         }
 
         function renderHistory() {
             const list = $('#move-history-list').empty();
             moveHistory.forEach((item, i) => {
                 const isWhite = i % 2 === 0;
-                if (isWhite) {
-                    list.append(`<div class="text-slate-500 text-[10px] col-span-2 mt-1">Move ${Math.floor(i / 2) + 1}</div>`);
-                }
-                const active = i === historyIndex ? 'active' : '';
-                list.append(`<div onclick="goToMove(${i})" class="move-item ${active}">${item.san}</div>`);
+                if (isWhite) list.append(`<div class="text-slate-600 text-[10px] col-span-2 mt-1 border-b border-slate-700/30">Move ${Math.floor(i / 2) + 1}</div>`);
+                list.append(`<div onclick="goToMove(${i})" class="move-item ${i === historyIndex ? 'active' : ''}">${item.san}</div>`);
             });
-            const container = document.getElementById('move-history-list');
-            // Auto-scroll to active item if it's the latest
             if (historyIndex === moveHistory.length - 1) {
+                const container = document.getElementById('move-history-list');
                 container.scrollTop = container.scrollHeight;
             }
         }
 
         function goToMove(index) {
-            if (index < -1 || index >= moveHistory.length) return;
+            if (index < -1) index = -1;
+            if (index >= moveHistory.length) index = moveHistory.length - 1;
             historyIndex = index;
-            
-            const fen = index === -1 ? 'start' : moveHistory[index].fen;
-            board.position(fen);
-            
-            // Show resume overlay if we aren't at the end
+            board.position(index === -1 ? 'start' : moveHistory[index].fen);
             if (historyIndex < moveHistory.length - 1) {
                 $('#resume-overlay').removeClass('hidden');
-                $('#history-label').text('Reviewing History...').addClass('text-amber-500').removeClass('text-blue-500');
+                $('#history-label').text('Viewing History').addClass('text-amber-500').removeClass('text-blue-500');
             } else {
                 $('#resume-overlay').addClass('hidden');
-                $('#history-label').text('Live Match').removeClass('text-amber-500').addClass('text-blue-500');
+                $('#history-label').text('Live Session').removeClass('text-amber-500').addClass('text-blue-500');
             }
-
             renderHistory();
         }
 
-        function resumeToLive() {
-            goToMove(moveHistory.length - 1);
-        }
+        function resumeToLive() { goToMove(moveHistory.length - 1); }
 
         function onDrop(source, target) {
-            // Check if we are viewing the latest position
             if (historyIndex !== moveHistory.length - 1) return 'snapback';
+
+            const piece = liveGame.get(source);
+            if (piece && piece.type === 'p' && (target[1] === '8' || target[1] === '1')) {
+                pendingMove = { from: source, to: target };
+                showPromotionModal(piece.color);
+                return;
+            }
 
             const move = liveGame.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
             
             recordMove(move);
             updateStatus();
-            
-            if (!liveGame.game_over()) {
-                setTimeout(triggerEngine, 250);
+            if (!liveGame.game_over()) setTimeout(triggerEngine, 250);
+        }
+
+        function showPromotionModal(color) {
+            const skin = pieceSkins.find(s => s.id === state.skin).url;
+            ['q','r','b','n'].forEach(p => {
+                const pieceName = color + p.toUpperCase();
+                document.getElementById(`promo-${p}`).src = skin.replace('{piece}', pieceName);
+            });
+            $('#promo-modal').removeClass('hidden');
+        }
+
+        function selectPromotion(piece) {
+            $('#promo-modal').addClass('hidden');
+            const move = liveGame.move({ ...pendingMove, promotion: piece });
+            pendingMove = null;
+            if (move) {
+                recordMove(move);
+                board.position(liveGame.fen());
+                updateStatus();
+                if (!liveGame.game_over()) setTimeout(triggerEngine, 250);
             }
         }
 
         function triggerEngine() {
             if (liveGame.game_over()) return;
             stockfish.postMessage(`position fen ${liveGame.fen()}`);
-            stockfish.postMessage(`go movetime ${100 + (activeLevel * 50)}`);
+            let waitTime = 150 + (activeLevel * 40);
+            if (activeLevel === 0) waitTime = 500; 
+            stockfish.postMessage(`go movetime ${waitTime}`);
         }
 
         function updateStatus() {
@@ -414,41 +507,53 @@
             $('#game-status').text(status);
             $('#current-level-title').text(`Level ${activeLevel.toFixed(1)}`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
-            
             if (liveGame.game_over()) handleGameOver();
             
-            // Eval is always calculated against the LIVE position, not the review position
-            stockfish.postMessage(`position fen ${liveGame.fen()}`);
-            stockfish.postMessage(`go depth 12`);
+            if (!liveGame.game_over()) {
+                stockfish.postMessage(`position fen ${liveGame.fen()}`);
+                stockfish.postMessage(`go depth 10`);
+            }
         }
 
         function handleGameOver() {
             const winner = liveGame.in_checkmate() ? (liveGame.turn() === 'b' ? 'white' : 'black') : 'draw';
             const playerWon = (winner === 'white' && playerColor === 'w') || (winner === 'black' && playerColor === 'b');
+            
+            $('#calculate-hint-btn').addClass('hidden');
+            $('#hint-box').addClass('hidden');
+
             $('#game-over-modal').removeClass('hidden');
-            const reward = activeLevel * rebirths;
+            const reward = Math.max(1, activeLevel * 2);
             if (playerWon) {
-                updateCoins(reward);
+                state.coins += reward;
                 $('#modal-title').text('Victory!').addClass('text-emerald-400');
                 $('#modal-reward').text(`+ ${reward.toFixed(1)} Coins`);
-                if (activeLevel >= currentLevel && currentLevel < 20) {
-                    currentLevel = parseFloat((currentLevel + 0.5).toFixed(1));
-                    localStorage.setItem('sf_unlocked_v6', currentLevel);
+                if (activeLevel >= state.unlocked && state.unlocked < 50) {
+                    state.unlocked = parseFloat((state.unlocked + 0.5).toFixed(1));
                 }
+                saveToLocal();
             } else {
-                $('#modal-title').text(winner === 'draw' ? 'Draw' : 'Defeat').removeClass('text-emerald-400');
+                $('#modal-title').text(winner === 'draw' ? 'Draw Match' : 'Checkmate!').removeClass('text-emerald-400');
                 $('#modal-reward').text('');
             }
         }
 
         async function resetGame() {
+            newGameClickCount++;
+            
             liveGame = new Chess();
             moveHistory = [];
             historyIndex = -1;
             playerColor = Math.random() < 0.5 ? 'w' : 'b';
             
             $('#resume-overlay').addClass('hidden');
-            $('#history-label').text('Live Match').removeClass('text-amber-500').addClass('text-blue-500');
+            $('#hint-box').addClass('hidden');
+            
+            if (hintUnlocked) {
+                 $('#calculate-hint-btn').removeClass('hidden');
+            } else {
+                 $('#calculate-hint-btn').addClass('hidden');
+            }
 
             board.orientation(playerColor === 'w' ? 'white' : 'black');
             board.start();
@@ -456,38 +561,96 @@
             updateEvalBar(0);
             await initEngine();
             updateStatus();
-            
             if (playerColor === 'b') triggerEngine();
         }
 
-        function copyMovesToClipboard() {
-            const moveList = moveHistory.map(m => m.san).join(' ');
-            const dummy = document.createElement("textarea");
-            document.body.appendChild(dummy);
-            dummy.value = moveList;
-            dummy.select();
-            document.execCommand("copy");
-            document.body.removeChild(dummy);
+        // Fixed Stockfish 17 Calculation Function
+        function calculateBestMove() {
+            if (isCalculatingHint || liveGame.game_over()) return;
             
-            const toast = document.getElementById('copy-toast');
-            toast.style.opacity = '1';
-            setTimeout(() => toast.style.opacity = '0', 2000);
+            isCalculatingHint = true;
+            $('#calculate-hint-btn').text('THINKING...').addClass('opacity-50');
+            $('#hint-text').text('ANALYZING...');
+            $('#hint-box').removeClass('hidden');
+
+            // CRITICAL: Must send position immediately before go
+            stockfish.postMessage(`stop`); // Stop current eval if any
+            stockfish.postMessage(`position fen ${liveGame.fen()}`);
+            // Use depth 18 OR 3 seconds, whichever comes first to prevent hangs
+            stockfish.postMessage(`go depth 18 movetime 3000`); 
         }
 
-        $(document).keydown((e) => {
-            if (e.keyCode === 37) goToMove(historyIndex - 1);
-            else if (e.keyCode === 39) goToMove(historyIndex + 1);
-        });
+        function attemptUnlockHint() {
+            if (newGameClickCount >= 2) {
+                hintUnlocked = true;
+                $('#calculate-hint-btn').removeClass('hidden');
+                showToast("SECRET HINT ENGINE UNLOCKED");
+            }
+        }
 
         $(document).ready(async () => {
+            loadFromLocal();
+            saveToLocal();
+            
+            liveGame = new Chess();
+            playerColor = 'w';
+            
+            const config = {
+                draggable: true,
+                position: 'start',
+                orientation: 'white',
+                onDragStart: (s, p) => (historyIndex === moveHistory.length - 1 && !liveGame.game_over() && liveGame.turn() === playerColor),
+                onDrop: onDrop,
+                onSnapEnd: () => board.position(historyIndex === -1 ? 'start' : moveHistory[historyIndex].fen),
+                pieceTheme: pieceSkins[0].url
+            };
+            board = Chessboard('board', config);
+            
             applyVisuals();
             initLevels();
-            updateCoins(0);
 
             $('#reset-btn').click(resetGame);
-            $('#copy-moves-btn').click(copyMovesToClipboard);
-            $('#flip-btn').click(() => board.flip());
             
+            $('#flip-btn').click(() => {
+                board.flip();
+                attemptUnlockHint(); 
+            });
+
+            $('#calculate-hint-btn').click(calculateBestMove);
+
+            $('#copy-moves-btn').click(async () => {
+                const moveList = moveHistory.map(m => m.san).join(' ');
+                try {
+                    await navigator.clipboard.writeText(moveList);
+                    showToast("Moves copied to clipboard!");
+                } catch(e) {
+                    showToast("Copy failed.");
+                }
+            });
+
+            $('#export-btn').click(() => {
+                const data = btoa(JSON.stringify(state));
+                navigator.clipboard.writeText(data);
+                showToast("Save code exported!");
+            });
+
+            $('#import-btn').click(() => {
+                const code = prompt("Paste your save code:");
+                if (code) {
+                    try {
+                        const parsed = JSON.parse(atob(code));
+                        state = parsed;
+                        saveToLocal();
+                        location.reload();
+                    } catch(e) { showToast("Invalid code."); }
+                }
+            });
+
+            $(document).keydown((e) => {
+                if (e.keyCode === 37) goToMove(historyIndex - 1);
+                else if (e.keyCode === 39) goToMove(historyIndex + 1);
+            });
+
             await resetGame();
             $(window).resize(() => board && board.resize());
         });
