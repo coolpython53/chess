@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockfish Mastery - Random Openings</title>
+    <title>Stockfish Mastery - Human Elo Scaling</title>
     <!-- Dependencies -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -118,7 +118,7 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 justify-center">
-                <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition uppercase tracking-tighter">New Game (Random Opening)</button>
+                <button id="reset-btn" class="flex-1 min-w-[120px] py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition uppercase tracking-tighter">New Game</button>
             </div>
         </div>
     </div>
@@ -150,18 +150,13 @@
         let multiPVBuffer = [];
         const TARGET_DEPTH = 18;
 
-        // --- RANDOM OPENINGS BOOK ---
         const OPENINGS_BOOK = [
             { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
             { name: "Sicilian Defense", moves: ["e4", "c5"] },
             { name: "French Defense", moves: ["e4", "e6"] },
             { name: "Caro-Kann Defense", moves: ["e4", "c6"] },
             { name: "Italian Game", moves: ["e4", "e5", "Nf3", "Nc6", "Bc4"] },
-            { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] },
-            { name: "King's Indian", moves: ["d4", "Nf6", "c4", "g6"] },
-            { name: "Nimzo-Indian", moves: ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4"] },
-            { name: "Reti Opening", moves: ["Nf3", "d5"] },
-            { name: "English Opening", moves: ["c4"] }
+            { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] }
         ];
         let activeOpeningSequence = null;
 
@@ -194,7 +189,6 @@
                 if (decoded) state = decoded; 
             } 
             $('#coin-display').text(state.coins.toLocaleString()); 
-            if (state.lastScore !== undefined) updateEvalBar(state.lastScore);
         }
         
         function saveToLocal() { 
@@ -220,86 +214,105 @@
                     const cpMatch = line.match(/score cp (-?\d+)/);
                     if (mpvMatch && pvMatch) {
                         const rank = parseInt(mpvMatch[1]);
-                        const move = pvMatch[1].split(' ')[0];
-                        const score = cpMatch ? parseInt(cpMatch[1]) : 0;
-                        multiPVBuffer[rank - 1] = { move, score };
+                        multiPVBuffer[rank - 1] = { 
+                            move: pvMatch[1].split(' ')[0], 
+                            score: cpMatch ? parseInt(cpMatch[1]) : 0 
+                        };
                     }
                 }
 
                 if (line.includes('info depth')) {
                     const cpMatch = line.match(/score cp (-?\d+)/);
-                    const mateMatch = line.match(/score mate (-?\d+)/);
                     if (cpMatch) {
                         let score = parseInt(cpMatch[1]);
                         if (liveGame.turn() === 'b') score = -score;
                         state.lastScore = score;
                         updateEvalBar(score);
-                    } else if (mateMatch) {
-                        updateEvalBar(parseInt(mateMatch[1]) > 0 ? 10000 : -10000);
-                    }
-
-                    if (isCalculatingHint) {
-                        const d = line.match(/depth (\d+)/)?.[1] || 0;
-                        $('#depth-text').text(`D: ${d}/${TARGET_DEPTH}`);
-                        $('#thinking-progress').css('width', `${(d/TARGET_DEPTH) * 100}%`);
-                        const pvMatch = line.match(/ pv (.+)/);
-                        if (pvMatch) {
-                            const firstMove = pvMatch[1].split(' ')[0];
-                            const temp = new Chess(liveGame.fen());
-                            const m = temp.move(firstMove, {sloppy:true});
-                            if (m) $('#hint-text').text(m.san).removeClass('text-slate-700').addClass('text-blue-500/60');
-                        }
                     }
                 }
 
                 if (line.startsWith('bestmove')) {
                     const moveStr = line.split(' ')[1];
                     if (isCalculatingHint) {
-                        const moveObj = new Chess(liveGame.fen()).move(moveStr, { sloppy: true });
+                        const moveObj = new Chess(liveGame.fen()).move(moveStr, {sloppy: true});
                         finishHint(moveObj ? moveObj.san : moveStr);
                     } else if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
-                        processEngineMove(moveStr);
+                        processEloScaledMove(moveStr);
                     }
                 }
             };
 
             stockfish.postMessage('uci');
-            stockfish.postMessage('setoption name Skill Level value 20');
             stockfish.postMessage('setoption name MultiPV value 5');
             stockfish.postMessage('isready');
         }
 
-        function processEngineMove(stockfishMove) {
-            let moveStr = stockfishMove;
+        /**
+         * Move Selection Logic:
+         * Weights the probability of choosing one of the top 5 engine moves
+         * based on the target level's Elo.
+         */
+        function processEloScaledMove(defaultBest) {
+            let finalMove = defaultBest;
+            const currentElo = levels[state.currentIndex].elo;
 
-            // VARIETY / RANDOMNESS SYSTEM
+            // Follow opening sequence if active
             if (activeOpeningSequence && activeOpeningSequence.length > 0) {
-                // If we have book moves left, try to play one
                 const bookMove = activeOpeningSequence.shift();
-                const testGame = new Chess(liveGame.fen());
-                const m = testGame.move(bookMove);
-                if (m) {
-                    moveStr = m.from + m.to + (m.promotion || '');
-                } else {
-                    activeOpeningSequence = null; // Sequence broken
-                }
-            } else if (multiPVBuffer.length > 1) {
-                // Use MultiPV to pick varied but sound moves
-                const levelIdx = state.currentIndex;
-                const randomFactor = Math.random();
-                const threshold = Math.min(0.9, (levelIdx / 300)); 
+                const test = new Chess(liveGame.fen());
+                const m = test.move(bookMove);
+                if (m) finalMove = m.from + m.to + (m.promotion || '');
+                else activeOpeningSequence = null;
+            } else if (multiPVBuffer.length > 0) {
+                // Human Elo Scaling Weighting
+                let weights = [];
                 
-                if (randomFactor > threshold) {
-                    const bestScore = multiPVBuffer[0].score;
-                    const candidates = multiPVBuffer.filter(m => Math.abs(m.score - bestScore) < 120);
-                    moveStr = candidates[Math.floor(Math.random() * candidates.length)].move;
+                // Elo < 600: Likely to pick moves 3-5 (Blunders/Mistakes)
+                if (currentElo < 600) {
+                    weights = [0.05, 0.10, 0.20, 0.30, 0.35]; 
+                } 
+                // Elo < 1000: Mixed play, misses some tactics
+                else if (currentElo < 1000) {
+                    weights = [0.20, 0.30, 0.25, 0.15, 0.10]; 
+                }
+                // Elo < 1500: Strong club player, occasionally inaccurate
+                else if (currentElo < 1500) {
+                    weights = [0.50, 0.30, 0.15, 0.04, 0.01]; 
+                }
+                // Elo < 2000: Expert, very few errors
+                else if (currentElo < 2000) {
+                    weights = [0.80, 0.15, 0.04, 0.01, 0];
+                }
+                // Elo 2000+: Master/GM level
+                else {
+                    weights = [0.98, 0.02, 0, 0, 0];
+                }
+
+                const rand = Math.random();
+                let cumulative = 0;
+                let moveIndex = 0;
+
+                for (let i = 0; i < weights.length; i++) {
+                    cumulative += weights[i];
+                    if (rand <= cumulative) {
+                        moveIndex = i;
+                        break;
+                    }
+                }
+
+                // Fallback if MultiPV didn't finish calculating enough lines
+                if (multiPVBuffer[moveIndex]) {
+                    finalMove = multiPVBuffer[moveIndex].move;
                 } else {
-                    moveStr = multiPVBuffer[0].move;
+                    finalMove = multiPVBuffer[0].move;
                 }
             }
 
-            const move = liveGame.move(moveStr, { sloppy: true });
-            if (move) { recordMove(move); updateStatus(); }
+            const move = liveGame.move(finalMove, { sloppy: true });
+            if (move) { 
+                recordMove(move); 
+                updateStatus(); 
+            }
         }
 
         function updateEvalBar(score) {
@@ -308,20 +321,13 @@
             const displayPct = Math.max(5, Math.min(95, pct));
             $('#eval-bar-white').css('height', `${displayPct}%`);
             let text = (score / 100).toFixed(1);
-            if (Math.abs(score) > 9000) text = "M";
             if (score > 0) text = "+" + text;
             $('#eval-text').text(text).toggleClass('on-white', displayPct > 50).toggleClass('on-black', displayPct <= 50);
         }
 
         function switchTab(tab) {
-            if (tab === 'levels') {
-                $('#content-levels').removeClass('hidden').addClass('flex');
-                $('#content-shop').addClass('hidden');
-            } else {
-                $('#content-levels').addClass('hidden');
-                $('#content-shop').removeClass('hidden').addClass('flex');
-                renderShop();
-            }
+            if (tab === 'levels') { $('#content-levels').removeClass('hidden').addClass('flex'); $('#content-shop').addClass('hidden'); }
+            else { $('#content-levels').addClass('hidden'); $('#content-shop').removeClass('hidden').addClass('flex'); renderShop(); }
         }
 
         function initLevels(filter = "") {
@@ -336,9 +342,8 @@
                     <div class="level-card p-2 rounded flex items-center justify-between cursor-pointer ${cardClass}">
                         <div class="flex flex-col">
                             <span class="text-xs font-bold ${isActive ? 'text-blue-400' : (isCompleted ? 'text-emerald-400' : 'text-slate-200')}">Level ${lvl.name}</span>
-                            <span class="text-[9px] text-slate-500 uppercase">Elo: ${lvl.elo} • Reward: 🪙${lvl.reward}</span>
+                            <span class="text-[9px] text-slate-500 uppercase">Elo: ${lvl.elo}</span>
                         </div>
-                        <span class="text-[10px]">${isLocked ? '🔒' : (isCompleted ? '✅' : (isActive ? '🎯' : '🔓'))}</span>
                     </div>
                 `);
                 if (!isLocked && !isCompleted) card.click(() => {
@@ -363,11 +368,11 @@
                     </div>
                 `);
                 item.click(() => {
-                    if (isOwned) { state.board = t.id; applyTheme(); } 
+                    if (isOwned) { state.board = t.id; applyTheme(); renderShop(); saveToLocal(); } 
                     else if (state.coins >= t.price) {
                         state.coins -= t.price; state.ownedBoards.push(t.id); state.board = t.id; applyTheme();
+                        renderShop(); saveToLocal();
                     }
-                    renderShop(); saveToLocal();
                 });
                 bShop.append(item);
             });
@@ -378,9 +383,19 @@
             $('#board').removeClass().addClass(theme.class);
         }
 
+        function recordMove(move) {
+            moveHistory.push({ fen: liveGame.fen(), san: move.san });
+            historyIndex = moveHistory.length - 1;
+            board.position(liveGame.fen());
+            renderHistory();
+            saveToLocal();
+            stockfish.postMessage(`position fen ${liveGame.fen()}`);
+            stockfish.postMessage(`go depth 12`);
+        }
+
         function finishHint(san) {
             isCalculatingHint = false;
-            $('#hint-text').text(san).removeClass('text-slate-700 italic text-blue-500/60').addClass('text-blue-400 font-black');
+            $('#hint-text').text(san).removeClass('text-slate-700 italic').addClass('text-blue-400 font-black');
             $('#thinking-progress').css('width', '100%');
             $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
         }
@@ -394,30 +409,13 @@
             stockfish.postMessage(`go depth ${TARGET_DEPTH}`);
         }
 
-        function recordMove(move) {
-            moveHistory.push({ fen: liveGame.fen(), san: move.san });
-            historyIndex = moveHistory.length - 1;
-            board.position(liveGame.fen());
-            renderHistory();
-            resetHintBox();
-            saveToLocal();
-            stockfish.postMessage(`position fen ${liveGame.fen()}`);
-            stockfish.postMessage(`go depth 12`);
-        }
-
-        function resetHintBox() {
-            isCalculatingHint = false;
-            $('#hint-text').text('Ready').addClass('text-slate-700 italic').removeClass('text-blue-400 font-black');
-            $('#depth-text').text('');
-            $('#thinking-progress').css('width', '0%');
-            $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
-        }
-
         function stopEngine() {
             if (stockfish) {
                 stockfish.postMessage('stop');
                 initEngine().then(() => {
-                    resetHintBox();
+                    $('#hint-text').text('Ready');
+                    $('#thinking-progress').css('width', '0%');
+                    $('#get-hint-btn').text('Request Hint').removeClass('opacity-50 pointer-events-none');
                     stockfish.postMessage(`position fen ${liveGame.fen()}`);
                     stockfish.postMessage(`go depth 12`);
                 });
@@ -427,7 +425,7 @@
         function updateStatus() {
             const turnText = liveGame.turn() === 'w' ? "White's Turn" : "Black's Turn";
             $('#game-status').text(liveGame.in_checkmate() ? 'Checkmate' : liveGame.in_draw() ? 'Draw' : turnText);
-            $('#current-level-title').text(`Level ${levels[state.currentIndex].name}`);
+            $('#current-level-title').text(`Level ${levels[state.currentIndex].name} (Elo ${levels[state.currentIndex].elo})`);
             $('#player-side-info').text(`Playing as ${playerColor === 'w' ? 'White' : 'Black'}`);
             if (liveGame.game_over()) handleGameOver();
         }
@@ -453,14 +451,14 @@
         function onDrop(source, target) {
             const move = liveGame.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
-            // Sequence was manually broken if user moves differently than opening
-            activeOpeningSequence = null;
+            activeOpeningSequence = null; // Manual move breaks book sequence
             recordMove(move);
             updateStatus();
             if (!liveGame.game_over()) {
                 setTimeout(() => {
                     multiPVBuffer = [];
                     stockfish.postMessage(`position fen ${liveGame.fen()}`);
+                    // Longer movetime at higher depths ensures better PV analysis
                     stockfish.postMessage(`go movetime 1200`);
                 }, 250);
             }
@@ -470,17 +468,10 @@
             const list = $('#move-history-list').empty();
             moveHistory.forEach((m, i) => {
                 const item = $(`<div class="move-item ${i === historyIndex ? 'active' : ''}">${m.san}</div>`);
-                item.click(() => jumpToMove(i));
+                item.click(() => { historyIndex = i; board.position(m.fen); renderHistory(); });
                 list.append(item);
             });
             const c = document.getElementById('move-history-list'); c.scrollTop = c.scrollHeight;
-        }
-
-        function jumpToMove(idx) {
-            if (idx < 0 || idx >= moveHistory.length) return;
-            historyIndex = idx;
-            board.position(moveHistory[idx].fen);
-            renderHistory();
         }
 
         async function resetGame() {
@@ -491,49 +482,21 @@
                 historyIndex = moveHistory.length - 1;
                 activeOpeningSequence = null;
             } else {
-                liveGame = new Chess(); 
-                moveHistory = []; 
-                historyIndex = -1;
+                liveGame = new Chess(); moveHistory = []; historyIndex = -1;
                 playerColor = Math.random() < 0.5 ? 'w' : 'b';
-                
-                // Select Random Opening
                 const opening = OPENINGS_BOOK[Math.floor(Math.random() * OPENINGS_BOOK.length)];
                 activeOpeningSequence = [...opening.moves];
-                $('#opening-info').text(`Game Theme: ${opening.name}`);
+                $('#opening-info').text(`Opening: ${opening.name}`);
             }
-            
-            if (board) {
-                board.orientation(playerColor === 'w' ? 'white' : 'black');
-                board.position(liveGame.fen());
-            }
-            
-            renderHistory(); 
-            updateEvalBar(state.lastScore || 0); 
-            resetHintBox();
-            await initEngine(); 
-            updateStatus();
-            
+            if (board) { board.orientation(playerColor === 'w' ? 'white' : 'black'); board.position(liveGame.fen()); }
+            renderHistory(); updateEvalBar(state.lastScore || 0);
+            await initEngine(); updateStatus();
             if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
-                multiPVBuffer = [];
-                stockfish.postMessage(`position fen ${liveGame.fen()}`);
+                multiPVBuffer = []; 
+                stockfish.postMessage(`position fen ${liveGame.fen()}`); 
                 stockfish.postMessage(`go movetime 1200`);
             }
         }
-
-        $('#level-search').on('input', function() { initLevels($(this).val()); });
-
-        $('#system-reset-btn').click(function() {
-            const btn = $(this);
-            if (btn.hasClass('confirming')) {
-                state = JSON.parse(JSON.stringify(INITIAL_STATE));
-                localStorage.removeItem(STORAGE_KEY);
-                saveToLocal(); resetGame(); initLevels(); applyTheme();
-                btn.removeClass('confirming bg-red-600 text-white').text('Clear Storage');
-            } else {
-                btn.addClass('confirming bg-red-600 text-white border-red-400').text('Confirm Reset?');
-                setTimeout(() => btn.removeClass('confirming bg-red-600 text-white').text('Clear Storage'), 3000);
-            }
-        });
 
         $(document).ready(async () => {
             loadFromLocal();
@@ -543,7 +506,6 @@
                 position: state.activeGame ? state.activeGame.fen : 'start',
                 onDragStart: (s, p) => {
                     if (liveGame.game_over() || liveGame.turn() !== playerColor) return false;
-                    if (historyIndex !== moveHistory.length - 1 && moveHistory.length > 0) return false;
                     return true;
                 },
                 onDrop: onDrop,
