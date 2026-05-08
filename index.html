@@ -1,1 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockfish Chess & Infinite Puzzles</title>
+    <!-- Dependencies -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --surface: #2d2d2d;
+            --text: #e0e0e0;
+            --accent: #4caf50;
+            --secondary: #2196f3;
+            --warning: #ff9800;
+            --error: #f44336;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        #board {
+            width: 100%;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .difficulty-panel {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+            flex: 1;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-secondary { background: var(--secondary); }
+        .btn-warning { background: var(--warning); }
+        
+        .status-box {
+            margin-top: 10px;
+            padding: 12px;
+            border-left: 4px solid var(--accent);
+            background: rgba(255,255,255,0.05);
+            min-height: 20px;
+        }
+        .thinking-indicator {
+            display: none;
+            color: var(--accent);
+            font-style: italic;
+            font-size: 0.85em;
+        }
+        .engine-status {
+            font-size: 0.7em;
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
 
+        .mode-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background: #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            border: 2px solid transparent;
+        }
+        .tab.active {
+            border-color: var(--accent);
+            background: #444;
+        }
+
+        .puzzle-ui {
+            display: none;
+        }
+        .puzzle-feedback {
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .correct { color: var(--accent); }
+        .incorrect { color: var(--error); }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="mode-tabs">
+    <div class="tab active" id="mode-bot" onclick="switchMode('bot')">Play Bot</div>
+    <div class="tab" id="mode-puzzle" onclick="switchMode('puzzle')">Tactics Trainer</div>
+</div>
+
+<div class="container">
+    <div id="board"></div>
+
+    <div class="controls bot-ui">
+        <div class="difficulty-panel">
+            <label for="difficulty">Bot Level: <span id="level-val">600</span> Elo</label>
+            <input type="range" id="difficulty" min="600" max="3000" step="100" value="600">
+            <div class="stats">
+                <span>Beginner</span>
+                <span>Grandmaster</span>
+            </div>
+        </div>
+
+        <div class="status-box">
+            <div id="game-status">White to move</div>
+            <div id="thinking" class="thinking-indicator">Stockfish is thinking...</div>
+        </div>
+
+        <button class="btn" onclick="resetGame()">New Game</button>
+        <div id="engine-load-status" class="engine-status">Initializing engine...</div>
+    </div>
+
+    <div class="controls puzzle-ui">
+        <div class="status-box">
+            <div id="puzzle-status">Loading random puzzle...</div>
+            <div id="puzzle-feedback" class="puzzle-feedback"></div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-secondary" onclick="fetchNewPuzzle()">Next Puzzle</button>
+            <button class="btn btn-warning" onclick="showSolution()">View on Lichess</button>
+        </div>
+        
+        <div id="puzzle-info" style="font-size: 0.8em; color: #888; margin-top: 10px;">
+            Find the best move for <span id="puzzle-side">...</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let board = null;
+    let game = new Chess();
+    let engine = null;
+    let currentMode = 'bot'; 
+    
+    let currentPuzzle = null;
+    let puzzleSolution = [];
+    let puzzleStep = 0;
+
+    const $status = $('#game-status');
+    const $thinking = $('#thinking');
+    const $levelVal = $('#level-val');
+    const $difficulty = $('#difficulty');
+    const $engineLoadStatus = $('#engine-load-status');
+    
+    const $puzzleStatus = $('#puzzle-status');
+    const $puzzleFeedback = $('#puzzle-feedback');
+    const $puzzleSide = $('#puzzle-side');
+
+    function switchMode(mode) {
+        currentMode = mode;
+        $('.tab').removeClass('active');
+        $(`#mode-${mode}`).addClass('active');
+        
+        if (mode === 'bot') {
+            $('.bot-ui').show();
+            $('.puzzle-ui').hide();
+            resetGame();
+        } else {
+            $('.bot-ui').hide();
+            $('.puzzle-ui').show();
+            fetchNewPuzzle();
+        }
+    }
+
+    async function fetchNewPuzzle() {
+        $puzzleStatus.text('Fetching from Lichess...');
+        $puzzleFeedback.text('').removeClass('correct incorrect');
+        
+        try {
+            const response = await fetch('https://lichess.org/api/puzzle/daily');
+            const data = await response.json();
+            
+            if (data && data.puzzle) {
+                currentPuzzle = data;
+                setupPuzzle(data);
+            } else {
+                throw new Error("Invalid puzzle data");
+            }
+        } catch (error) {
+            $puzzleStatus.text('Error loading puzzle.');
+            console.error(error);
+        }
+    }
+
+    function setupPuzzle(data) {
+        // Clear game state
+        game = new Chess();
+        
+        // Robust FEN extraction to prevent TypeError: split of undefined in chess.js
+        let fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        if (data.game && typeof data.game.fen === 'string') {
+            fen = data.game.fen;
+        } else if (data.puzzle && typeof data.puzzle.fen === 'string') {
+            fen = data.puzzle.fen;
+        }
+
+        // Attempt to load the FEN, with a fallback if it fails
+        const success = game.load(fen);
+        if (!success) {
+            console.error("Failed to load FEN:", fen);
+            game.reset(); // Fallback to start position
+        }
+
+        puzzleSolution = data.puzzle.solution || [];
+        puzzleStep = 0;
+        
+        if (puzzleSolution.length > 0) {
+            // First move is opponent's move setup
+            const firstMove = puzzleSolution[0];
+            const result = playUciMove(firstMove);
+            
+            if (result) {
+                puzzleStep = 1;
+            } else {
+                console.warn("Initial move setup failed for UCI:", firstMove);
+            }
+        }
+
+        const playerColor = game.turn() === 'w' ? 'white' : 'black';
+        board.orientation(playerColor);
+        board.position(game.fen(), true);
+        
+        $puzzleSide.text(playerColor.charAt(0).toUpperCase() + playerColor.slice(1));
+        $puzzleStatus.text(`Puzzle Rating: ${data.puzzle.rating || 'Unknown'}`);
+        $puzzleFeedback.text('Your turn!').removeClass('incorrect correct');
+    }
+
+    function playUciMove(uci) {
+        if (!uci || uci.length < 4) return null;
+        
+        const from = uci.substring(0, 2);
+        const to = uci.substring(2, 4);
+        const promotion = uci.length > 4 ? uci.substring(4, 5).toLowerCase() : 'q';
+        
+        try {
+            return game.move({ from, to, promotion });
+        } catch (e) {
+            console.error("Internal Error during move:", e);
+            return null;
+        }
+    }
+
+    function handlePuzzleMove(userMove) {
+        if (!puzzleSolution || puzzleStep >= puzzleSolution.length) return;
+
+        const userMoveStr = userMove.from + userMove.to + (userMove.promotion || '');
+        const correctMoveStr = puzzleSolution[puzzleStep];
+        
+        if (userMoveStr === correctMoveStr) {
+            $puzzleFeedback.text('Correct!').removeClass('incorrect').addClass('correct');
+            puzzleStep++;
+            
+            if (puzzleStep < puzzleSolution.length) {
+                const opponentReply = puzzleSolution[puzzleStep];
+                setTimeout(() => {
+                    playUciMove(opponentReply);
+                    board.position(game.fen(), true);
+                    puzzleStep++;
+                    
+                    if (puzzleStep >= puzzleSolution.length) {
+                        $puzzleStatus.text('Puzzle Solved!');
+                        $puzzleFeedback.text('Excellent!').addClass('correct');
+                    }
+                }, 600);
+            } else {
+                $puzzleStatus.text('Puzzle Solved!');
+                $puzzleFeedback.text('Excellent!').addClass('correct');
+            }
+        } else {
+            $puzzleFeedback.text('Incorrect. Try again!').removeClass('correct').addClass('incorrect');
+            game.undo();
+            setTimeout(() => board.position(game.fen(), true), 250);
+        }
+    }
+
+    function showSolution() {
+        if (currentPuzzle && currentPuzzle.puzzle) {
+            window.open(`https://lichess.org/training/${currentPuzzle.puzzle.id}`, '_blank');
+        }
+    }
+
+    function initEngine() {
+        try {
+            const stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+            const workerCode = `importScripts("${stockfishUrl}");`;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            engine = new Worker(URL.createObjectURL(blob));
+            
+            engine.onmessage = function(event) {
+                const line = event.data;
+                if (line === 'uciok') {
+                    $engineLoadStatus.text("Engine Ready");
+                    updateDifficulty();
+                }
+                if (line.indexOf('bestmove') > -1) {
+                    const moveMatch = line.match(/bestmove\s([a-h][1-8][a-h][1-8][qrbn]?)/);
+                    if (moveMatch && currentMode === 'bot') {
+                        makeEngineMove(moveMatch[1]);
+                    }
+                }
+            };
+            engine.onerror = () => $engineLoadStatus.text("Engine Error.");
+            engine.postMessage('uci');
+            engine.postMessage('isready');
+        } catch (e) {
+            $engineLoadStatus.text("Init Failed.");
+        }
+    }
+
+    function updateDifficulty() {
+        if (!engine) return;
+        const val = parseInt($difficulty.val());
+        $levelVal.text(val);
+        const skillLevel = Math.floor(((val - 600) / 2400) * 20);
+        engine.postMessage('setoption name Skill Level value ' + skillLevel);
+        engine.postMessage('setoption name UCI_LimitStrength value true');
+        engine.postMessage('setoption name UCI_Elo value ' + val);
+    }
+
+    function onDragStart(source, piece) {
+        if (game.game_over()) return false;
+        
+        const turn = game.turn();
+        if ((turn === 'w' && piece.search(/^b/) !== -1) || 
+            (turn === 'b' && piece.search(/^w/) !== -1)) {
+            return false;
+        }
+
+        if (currentMode === 'bot' && turn === 'b') return false;
+    }
+
+    function onDrop(source, target) {
+        const move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+
+        if (currentMode === 'bot') {
+            updateStatus();
+            window.setTimeout(askEngine, 250);
+        } else {
+            handlePuzzleMove(move);
+        }
+    }
+
+    function makeEngineMove(moveStr) {
+        $thinking.hide();
+        playUciMove(moveStr);
+        board.position(game.fen(), true);
+        updateStatus();
+    }
+
+    function askEngine() {
+        if (game.game_over() || !engine) return;
+        $thinking.show();
+        engine.postMessage('position fen ' + game.fen());
+        const thinkTime = parseInt($difficulty.val()) < 1000 ? 50 : 500; 
+        engine.postMessage('go movetime ' + thinkTime);
+    }
+
+    function updateStatus() {
+        let status = game.turn() === 'b' ? 'Black to move' : 'White to move';
+        if (game.in_checkmate()) status = 'Checkmate!';
+        else if (game.in_draw()) status = 'Draw!';
+        $status.html(status);
+    }
+
+    function resetGame() {
+        game = new Chess();
+        board.orientation('white');
+        board.start();
+        updateStatus();
+    }
+
+    window.onload = function() {
+        board = ChessBoard('board', {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: () => board.position(game.fen()),
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        });
+        updateStatus();
+        initEngine();
+    };
+
+    $difficulty.on('input', updateDifficulty);
+</script>
+</body>
+</html>
