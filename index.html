@@ -2,28 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pixel Grid - Final Lock</title>
+    <title>Pixel Grid - Hard Lock</title>
     <style>
         body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
-        #header { background: #333; height: 60px; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 10; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        #header { background: #333; height: 60px; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 10; }
         #view-port { width: 100vw; height: calc(100vh - 60px); overflow: auto; background: #222; }
-        canvas { background: #ffffff; image-rendering: pixelated; cursor: crosshair; display: block; margin: 0 auto; border: 5px solid #333; }
-        .stat { padding: 5px 12px; border-radius: 4px; background: #444; font-size: 14px; min-width: 70px; text-align: center; }
+        canvas { background: #ffffff; image-rendering: pixelated; cursor: crosshair; display: block; margin: 0 auto; border: 2px solid #000; }
+        .stat { padding: 5px 12px; border-radius: 4px; background: #444; font-size: 14px; min-width: 80px; text-align: center; }
         #status.ready { color: #4caf50; font-weight: bold; }
         #status.wait { color: #ff5252; font-weight: bold; }
         #status.syncing { color: #2196f3; }
-        input[type="color"] { border: none; width: 35px; height: 35px; cursor: pointer; background: none; }
-        button { cursor: pointer; background: #555; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; }
+        input[type="color"] { border: none; width: 40px; height: 40px; cursor: pointer; background: none; }
     </style>
 </head>
 <body>
 
 <div id="header">
     <input type="color" id="colorPicker" value="#000000">
-    <div id="status" class="wait">Initializing...</div>
+    <div id="status" class="wait">Starting...</div>
     <div id="timer" class="stat">--</div>
     <div id="coords" class="stat">X: 0, Y: 0</div>
-    <button onclick="loadPixels()">Sync Map</button>
+    <button onclick="loadPixels()" style="cursor:pointer; padding:8px; border-radius:4px; border:none; background:#666; color:white;">Sync</button>
 </div>
 
 <div id="view-port">
@@ -33,98 +32,75 @@
 <script>
     const API = "https://script.google.com/macros/s/AKfycbxUhcHKbXAvsP_KhDTDc9AOWgaifOz6NTS0GGbTIG-9vBIcN1z3k7Hf5E9eivHMfIiutA/exec";
     const TOKEN = "1341323124312432141342312431427646";
-    const COOLDOWN_SECONDS = 40; 
+    const COOLDOWN_MS = 40000; // 40 Seconds
     
     const cv = document.getElementById('mainCanvas');
     const ctx = cv.getContext('2d');
     const statusEl = document.getElementById('status');
     const timerEl = document.getElementById('timer');
     
-    let isCurrentlySyncing = false;
-    let countdownInterval = null;
+    let isFetching = false;
 
-    // --- 1. CORE COOLDOWN CALCULATOR ---
-    function getRemainingCooldown() {
-        const lastPlacement = localStorage.getItem('px_time');
-        if (!lastPlacement) return 0;
-        
-        const elapsed = Date.now() - parseInt(lastPlacement);
-        const remaining = Math.ceil((COOLDOWN_SECONDS * 1000 - elapsed) / 1000);
-        return remaining > 0 ? remaining : 0;
+    // --- 1. THE ONLY SOURCE OF TRUTH: THE CLOCK ---
+    function getCooldownRemaining() {
+        const last = localStorage.getItem('px_time');
+        if (!last) return 0;
+        const now = Date.now();
+        const diff = now - parseInt(last);
+        return Math.max(0, COOLDOWN_MS - diff);
     }
 
-    // --- 2. SYNC FUNCTION ---
-    async function loadPixels() {
-        if (isCurrentlySyncing) return;
-        isCurrentlySyncing = true;
-
-        // Visual update only if NOT in cooldown
-        const remaining = getRemainingCooldown();
-        if (remaining <= 0) {
+    // --- 2. UPDATE THE UI (RUNS CONSTANTLY) ---
+    function refreshUI() {
+        const remainingMs = getCooldownRemaining();
+        
+        if (remainingMs > 0) {
+            statusEl.innerText = "Wait";
+            statusEl.className = "wait";
+            timerEl.innerText = Math.ceil(remainingMs / 1000) + "s";
+        } else if (isFetching) {
             statusEl.innerText = "Syncing...";
             statusEl.className = "syncing";
+            timerEl.innerText = "Ready";
+        } else {
+            statusEl.innerText = "Ready";
+            statusEl.className = "ready";
+            timerEl.innerText = "Ready";
         }
-        
+    }
+
+    // --- 3. DATA LOADING ---
+    async function loadPixels() {
+        if (isFetching) return;
+        isFetching = true;
+        refreshUI();
+
         try {
-            const response = await fetch(API + "?t=" + Date.now(), { redirect: 'follow' });
-            const data = await response.json();
+            const res = await fetch(API + "?t=" + Date.now());
+            const data = await res.json();
             
+            // Clear and redraw
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, 1000, 1000);
-
+            
             if (data && data.length > 0) {
                 data.forEach(p => {
                     ctx.fillStyle = p.color;
                     ctx.fillRect(parseInt(p.x), parseInt(p.y), 1, 1);
                 });
             }
-        } catch(e) {
-            console.error("Sync Error:", e);
-        } finally {
-            isCurrentlySyncing = false;
-            updateUI(); // Force UI to correct state after sync
-        }
-    }
-
-    // --- 3. UI & TIMER MANAGER ---
-    function updateUI() {
-        const remaining = getRemainingCooldown();
+        } catch (e) { console.error("Sync error", e); }
         
-        if (remaining > 0) {
-            statusEl.innerText = "Wait";
-            statusEl.className = "wait";
-            timerEl.innerText = remaining + "s";
-            
-            // Start the ticker if it's not already running
-            if (!countdownInterval) {
-                countdownInterval = setInterval(() => {
-                    const r = getRemainingCooldown();
-                    if (r <= 0) {
-                        clearInterval(countdownInterval);
-                        countdownInterval = null;
-                        updateUI();
-                    } else {
-                        timerEl.innerText = r + "s";
-                    }
-                }, 1000);
-            }
-        } else {
-            statusEl.innerText = "Ready";
-            statusEl.className = "ready";
-            timerEl.innerText = "Ready";
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-                countdownInterval = null;
-            }
-        }
+        isFetching = false;
+        refreshUI();
     }
 
-    // --- 4. CLICK HANDLER (WITH HARD LOCK) ---
-    cv.addEventListener('click', (e) => {
-        // HARD CHECK: Ignore everything else, check the actual timestamp
-        if (getRemainingCooldown() > 0) {
-            console.warn("Placement blocked: Cooldown active.");
-            return; 
+    // --- 4. THE CLICK (WITH HARD TIMESTAMP LOCK) ---
+    cv.addEventListener('mousedown', (e) => {
+        // RE-CALCULATE CLOCK IMMEDIATELY ON CLICK
+        if (getCooldownRemaining() > 0) {
+            console.log("Blocked: Timer still running");
+            return; // EXIT IMMEDIATELY
         }
 
         const rect = cv.getBoundingClientRect();
@@ -132,13 +108,13 @@
         const y = Math.floor((e.clientY - rect.top) * (cv.height / rect.height));
         const color = document.getElementById('colorPicker').value;
 
-        // Place Locally
+        // Draw Locally
         ctx.fillStyle = color;
         ctx.fillRect(x, y, 1, 1);
 
-        // Set Timestamp & Start UI lock
+        // LOCK THE CLOCK
         localStorage.setItem('px_time', Date.now().toString());
-        updateUI();
+        refreshUI();
 
         // Send to Server
         fetch(API, {
@@ -148,7 +124,7 @@
         });
     });
 
-    // Cursor coordinates
+    // Handle Coordinate Display
     cv.addEventListener('mousemove', (e) => {
         const rect = cv.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) * (cv.width / rect.width));
@@ -156,11 +132,13 @@
         document.getElementById('coords').innerText = `X: ${x}, Y: ${y}`;
     });
 
-    // --- BOOT ---
+    // --- 5. INITIALIZE ---
     window.onload = () => {
-        updateUI();
         loadPixels();
-        setInterval(loadPixels, 20000); // Auto-sync background loop
+        // UI refreshes every 100ms for a smooth timer
+        setInterval(refreshUI, 100); 
+        // Background sync every 30 seconds
+        setInterval(loadPixels, 30000); 
     };
 
 </script>
