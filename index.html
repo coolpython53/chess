@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Fixed Pixel Grid</title>
+    <title>Pixel Grid - Final Fix</title>
     <style>
         body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
         #header { background: #333; height: 60px; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 10; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
@@ -14,7 +14,6 @@
         #status.syncing { color: #2196f3; }
         input[type="color"] { border: none; width: 35px; height: 35px; cursor: pointer; background: none; }
         button { cursor: pointer; background: #555; color: white; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; }
-        button:hover { background: #666; }
     </style>
 </head>
 <body>
@@ -34,7 +33,7 @@
 <script>
     const API = "https://script.google.com/macros/s/AKfycbxUhcHKbXAvsP_KhDTDc9AOWgaifOz6NTS0GGbTIG-9vBIcN1z3k7Hf5E9eivHMfIiutA/exec";
     const TOKEN = "1341323124312432141342312431427646";
-    const COOLDOWN_TIME = 40; // Seconds
+    const COOLDOWN_TIME = 40; 
     
     const cv = document.getElementById('mainCanvas');
     const ctx = cv.getContext('2d');
@@ -46,7 +45,6 @@
 
     // --- 1. THE LOAD/SYNC FUNCTION ---
     async function loadPixels() {
-        // Don't change status text if we are currently in a cooldown "Wait"
         const wasInCooldown = !canDraw;
         if (!wasInCooldown) {
             statusEl.innerText = "Syncing...";
@@ -69,17 +67,14 @@
                 });
             }
             
-            // Only set status to Ready if a cooldown isn't running
-            if (!wasInCooldown) {
-                setReady();
-            }
+            if (!wasInCooldown) setReady();
+            console.log("Initial Sync Complete");
         } catch(e) {
             console.error("Sync Error:", e);
-            if (!wasInCooldown) statusEl.innerText = "Offline";
         }
     }
 
-    // --- 2. THE TIMER LOGIC (IRON-CLAD) ---
+    // --- 2. THE TIMER LOGIC ---
     function checkCooldown() {
         const last = localStorage.getItem('px_time');
         if (!last) {
@@ -108,7 +103,6 @@
         countdownInterval = setInterval(() => {
             seconds--;
             timerEl.innerText = seconds + "s";
-            
             if (seconds <= 0) {
                 clearInterval(countdownInterval);
                 setReady();
@@ -124,39 +118,27 @@
     }
 
     // --- 3. CLICK TO PLACE ---
-    cv.addEventListener('click', async (e) => {
-        // STRICT CHECK: If cooldown is active, stop right here.
-        if (!canDraw) {
-            alert("Cooldown active! Wait for the timer.");
-            return;
-        }
+    cv.addEventListener('click', (e) => {
+        if (!canDraw) return;
 
         const rect = cv.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) * (cv.width / rect.width));
         const y = Math.floor((e.clientY - rect.top) * (cv.height / rect.height));
         const color = document.getElementById('colorPicker').value;
 
-        // 1. Draw locally for instant speed
         ctx.fillStyle = color;
         ctx.fillRect(x, y, 1, 1);
 
-        // 2. IMMEDIATELY LOCK and start timer
         localStorage.setItem('px_time', Date.now().toString());
         startCountdown(COOLDOWN_TIME);
 
-        // 3. Send to Google in background
-        try {
-            fetch(API, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({ x, y, color, token: TOKEN })
-            });
-        } catch(err) { 
-            console.error("Post error"); 
-        }
+        fetch(API, {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify({ x, y, color, token: TOKEN })
+        });
     });
 
-    // --- 4. UTILS & LOOPS ---
     cv.addEventListener('mousemove', (e) => {
         const rect = cv.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) * (cv.width / rect.width));
@@ -164,12 +146,13 @@
         document.getElementById('coords').innerText = `X: ${x}, Y: ${y}`;
     });
 
-    // Start Up
-    loadPixels();
-    checkCooldown();
-
-    // Auto-Sync every 20 seconds (safer for Google limits)
-    setInterval(loadPixels, 20000);
+    // --- CRITICAL FIX: BOOT SEQUENCE ---
+    window.onload = () => {
+        console.log("Page loaded. Starting sequence...");
+        checkCooldown(); // Set timer state immediately
+        loadPixels();    // Then fetch the map
+        setInterval(loadPixels, 20000); // Auto-refresh loop
+    };
 
 </script>
 </body>
